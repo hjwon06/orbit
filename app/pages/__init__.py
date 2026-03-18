@@ -26,6 +26,20 @@ def _json_serial(obj):
 router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="app/templates")
 
+# kst 필터 등록 (main.py와 동일)
+from datetime import timedelta, timezone as tz
+_KST = tz(timedelta(hours=9))
+
+def _to_kst(value, fmt="%Y-%m-%d %H:%M"):
+    if value is None:
+        return ""
+    try:
+        return value.astimezone(_KST).strftime(fmt)
+    except Exception:
+        return str(value)
+
+templates.env.filters["kst"] = _to_kst
+
 DAESIN_AGENTS = [
     ("A0", "Infrastructure", "opus"),
     ("A1", "Public Data", "sonnet"),

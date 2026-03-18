@@ -72,41 +72,46 @@
                 <p class="text-xs text-muted mt-0.5">관제 허브 v0.1</p>
             </div>
 
+            {% set _slug = project.slug if project is defined and project else '' %}
+
             <nav class="flex flex-col gap-1 text-sm" @click="sidebarOpen = false">
                 <a href="/" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if page_title == 'ORBIT' %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
                     대시보드
                 </a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if 'agents' in (page_title|default('')) or '에이전트' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
-                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/agents'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                {% if _slug %}
+                <a href="/projects/{{ _slug }}/agents" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '에이전트' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                     에이전트
                 </a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '타임라인' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
-                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/timeline'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                <a href="/projects/{{ _slug }}/timeline" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '타임라인' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
                     타임라인
                 </a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '세션' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
-                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/sessions'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                <a href="/projects/{{ _slug }}/sessions" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '세션' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     세션 로그
                 </a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '작업' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
-                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/logs'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                <a href="/projects/{{ _slug }}/logs" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '작업' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
                     작업 로그
                 </a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '인프라' in (page_title|default('')) or '비용' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
-                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/costs'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                <a href="/projects/{{ _slug }}/costs" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '비용' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                     인프라 비용
                 </a>
-                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if 'AI' in (page_title|default('')) or '할일' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
-                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/todos'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                <a href="/projects/{{ _slug }}/todos" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '할일' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                     AI 할일
                 </a>
+                {% else %}
+                <span class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 cursor-not-allowed" title="대시보드에서 프로젝트를 선택하세요"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg> 에이전트</span>
+                <span class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 cursor-not-allowed" title="대시보드에서 프로젝트를 선택하세요"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg> 타임라인</span>
+                <span class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 cursor-not-allowed" title="대시보드에서 프로젝트를 선택하세요"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> 세션 로그</span>
+                <span class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 cursor-not-allowed" title="대시보드에서 프로젝트를 선택하세요"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg> 작업 로그</span>
+                <span class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 cursor-not-allowed" title="대시보드에서 프로젝트를 선택하세요"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> 인프라 비용</span>
+                <span class="flex items-center gap-2 px-3 py-2 rounded-lg text-gray-300 cursor-not-allowed" title="대시보드에서 프로젝트를 선택하세요"><svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg> AI 할일</span>
+                {% endif %}
                 <a href="/infra" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '인프라 관리' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
                     인프라 관리

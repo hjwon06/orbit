@@ -2,7 +2,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
-from app.models import Agent, AgentRun
+from app.models import Agent, AgentRun, Project
 from app.schemas.agent import AgentCreate, AgentUpdate, AgentRunCreate, AgentRunFinish
 
 
@@ -98,3 +98,17 @@ async def get_runs_by_agent(db: AsyncSession, agent_id: int, limit: int = 10):
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def get_agent_by_code(db: AsyncSession, project_slug: str, agent_code: str) -> Agent | None:
+    stmt = (
+        select(Agent)
+        .join(Project)
+        .where(Project.slug == project_slug, Agent.agent_code == agent_code)
+        .options(selectinload(Agent.runs))
+    )
+    result = await db.execute(stmt)
+    agent = result.scalar_one_or_none()
+    if agent:
+        agent.recent_runs = agent.runs[:10]  # type: ignore[attr-defined]
+    return agent

@@ -60,6 +60,13 @@ class AuthMiddleware(BaseHTTPMiddleware):
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
             return await call_next(request)
 
+        # 로컬 에이전트 API 면제 (Claude Code 연동용)
+        AGENT_API_EXEMPT = ("/api/agents/runs", "/api/agents/lookup")
+        if any(path.startswith(p) for p in AGENT_API_EXEMPT):
+            client_ip = request.client.host if request.client else ""
+            if client_ip in {"127.0.0.1", "::1"} or client_ip.startswith("172."):
+                return await call_next(request)
+
         # API는 쿠키 인증 (미인증 시 401)
         if path.startswith("/api/"):
             user = get_current_user(request)

@@ -8,6 +8,7 @@ from app.schemas.agent import (
 from app.services.agent_service import (
     get_agents_by_project, get_agent, create_agent, update_agent,
     heartbeat_agent, start_run, finish_run, get_runs_by_agent,
+    get_agent_by_code,
 )
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -16,6 +17,14 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 @router.get("/project/{project_id}", response_model=list[AgentResponse])
 async def list_agents(project_id: int, db: AsyncSession = Depends(get_db)):
     return await get_agents_by_project(db, project_id)
+
+
+@router.get("/lookup", response_model=AgentResponse)
+async def lookup_agent(project_slug: str, agent_code: str, db: AsyncSession = Depends(get_db)):
+    agent = await get_agent_by_code(db, project_slug, agent_code)
+    if not agent:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return agent
 
 
 @router.get("/{agent_id}", response_model=AgentResponse)
