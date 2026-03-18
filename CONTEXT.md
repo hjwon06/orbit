@@ -20,25 +20,25 @@
 | Auth | 세션 쿠키 인증 (단일 관리자) | done |
 | S8 | 대시보드 트렌드 차트 (Chart.js 28일) + AI 할일 프롬프트 개선 | done |
 | S9 | UI 보강 (에러페이지, 스키마 필드, 프로젝트 수정/삭제, 스파크라인, 비용 도넛차트) | done |
+| S10 | 에이전트 오케스트레이터 + UI 다듬기 (사이드바, 아이콘, 필터, 활동시간, 드롭다운) | done |
 
 ---
 
 ## DB 테이블
 
 ```
-ob_projects     ← S0
+ob_projects     ← S0 (중심 테이블, 모든 모듈의 FK 대상)
 ob_agents       ← S1
-ob_agent_runs   ← S1
-ob_milestones   ← S2 (github_issue_url, github_issue_number, source 필드 S6용 선반영)
+ob_agent_runs   ← S1 (에이전트 오케스트레이터 연동)
+ob_milestones   ← S2 (github_issue_url, github_issue_number, source 필드 선반영)
 ob_sessions     ← S3 (세션 시작/종료 + 마크다운 요약 + 옵시디언 자동 저장)
 ob_work_logs    ← S4 (날짜별 작업 기록, upsert 방식)
-ob_commit_stats ← S4 (날짜별 커밋 통계, 수동 입력 → S6에서 GitHub 자동 수집)
+ob_commit_stats ← S4 (날짜별 커밋 통계, GitHub 자동 수집)
 ob_infra_costs  ← S5 (프로바이더별 서비스 비용, monthly/yearly/one-time)
-ob_todos        ← S6 (수동 + AI 추천 + GitHub 이슈 연동 준비)
-ob_deployments  ← S7 (배포 이력, 백그라운드 실행)
-ob_db_migrations ← S7 (마이그레이션 실행 이력)
-ob_sql_history  ← S7 (SQL 쿼리 실행 이력, 위험 쿼리 차단)
-ob_server_snapshots ← S7 (서버 CPU/메모리/디스크 스냅샷)
+ob_todos        ← S6 (수동 + AI 추천 + GitHub 이슈 연동)
+ob_sql_history  ← S7 (SQL 쿼리 실행 이력)
+
+삭제됨 (S10): ob_deployments, ob_db_migrations, ob_server_snapshots
 ```
 
 ---
@@ -116,6 +116,13 @@ ob_server_snapshots ← S7 (서버 CPU/메모리/디스크 스냅샷)
 | 스파크라인 | Chart.js 미니 라인 (카드 내 36px) | 프로젝트별 7일 세션+커밋 합산, animation:false |
 | 비용 도넛차트 | Chart.js doughnut (cutout 60%) | 프로바이더별 비율, $watch로 실시간 갱신 |
 | 스키마 보강 | TodoUpdate +ai_reasoning/source, AgentUpdate +agent_name | API로 수정 가능 필드 확대 |
+| 미사용 테이블 제거 | ob_deployments, ob_db_migrations, ob_server_snapshots DROP | 데이터 0건 + 코드 미사용, 필요 시 재생성 |
+| 에이전트 오케스트레이터 | AuthMiddleware 로컬 면제 + lookup API | Claude Code → ORBIT 에이전트 모니터 자동 연동 |
+| 사이드바 비활성화 | Jinja2 조건부 렌더링 (alert → cursor-not-allowed) | 프로젝트 미선택 시 메뉴 비활성화 |
+| 모듈 카드 아이콘 | SVG 아이콘 6개 (사이드바와 동일) | 스캔가능성 향상 |
+| 비용 필터 | showActiveOnly 토글 + filteredCosts | 활성/전체 전환 |
+| 마지막 활동 시간 | MAX(session.started_at, commit.created_at) | 대시보드 카드에 상대 시간 표시 |
+| 세션 드롭다운 | agents_json → select 프리셋 | 자유입력 대신 에이전트 목록 선택 |
 
 ---
 
