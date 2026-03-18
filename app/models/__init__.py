@@ -26,8 +26,6 @@ class Project(Base):
     commit_stats = relationship("CommitStat", back_populates="project", cascade="all, delete-orphan")
     infra_costs = relationship("InfraCost", back_populates="project", cascade="all, delete-orphan")
     todos = relationship("Todo", back_populates="project", cascade="all, delete-orphan")
-    deployments = relationship("Deployment", back_populates="project", cascade="all, delete-orphan")
-
     def __repr__(self):
         return f"<Project {self.slug}>"
 
@@ -192,39 +190,6 @@ class Todo(Base):
         return f"<Todo {self.title}:{self.status}>"
 
 
-class Deployment(Base):
-    __tablename__ = "ob_deployments"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
-    target = Column(String(50), nullable=False)
-    commit_sha = Column(String(40), default="")
-    branch = Column(String(100), default="main")
-    status = Column(String(20), default="pending")
-    log = Column(Text, default="")
-    duration_sec = Column(Integer, nullable=True)
-    triggered_by = Column(String(50), default="manual")
-    started_at = Column(DateTime(timezone=True), server_default=func.now())
-    finished_at = Column(DateTime(timezone=True), nullable=True)
-
-    project = relationship("Project", back_populates="deployments")
-
-    def __repr__(self):
-        return f"<Deployment {self.target}:{self.status}>"
-
-
-class DbMigration(Base):
-    __tablename__ = "ob_db_migrations"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
-    db_alias = Column(String(50), nullable=False)
-    migration_name = Column(String(200), nullable=False)
-    direction = Column(String(10), default="upgrade")
-    status = Column(String(20), default="success")
-    log = Column(Text, default="")
-    executed_at = Column(DateTime(timezone=True), server_default=func.now())
-
 
 class SqlHistory(Base):
     __tablename__ = "ob_sql_history"
@@ -239,20 +204,3 @@ class SqlHistory(Base):
     executed_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
-class ServerSnapshot(Base):
-    __tablename__ = "ob_server_snapshots"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    server_name = Column(String(50), nullable=False)
-    cpu_pct = Column(Numeric(5, 2), default=0)
-    memory_pct = Column(Numeric(5, 2), default=0)
-    disk_pct = Column(Numeric(5, 2), default=0)
-    memory_used_mb = Column(Integer, default=0)
-    memory_total_mb = Column(Integer, default=0)
-    disk_used_gb = Column(Numeric(10, 2), default=0)
-    disk_total_gb = Column(Numeric(10, 2), default=0)
-    load_avg_1m = Column(Numeric(5, 2), default=0)
-    process_count = Column(Integer, default=0)
-    uptime_hours = Column(Integer, default=0)
-    raw_data = Column(JSON, default={})
-    collected_at = Column(DateTime(timezone=True), server_default=func.now())

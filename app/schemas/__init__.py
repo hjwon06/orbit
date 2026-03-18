@@ -8,9 +8,6 @@ from app.schemas.infra_cost import InfraCostCreate, InfraCostUpdate, InfraCostRe
 from app.schemas.todo import TodoCreate, TodoUpdate, TodoResponse
 from app.schemas.infra import (
     DbInfo, TableInfo, SqlRequest, SqlResult, SqlHistoryResponse,
-    MigrationRequest, MigrationResponse,
-    DeployRequest, DeploymentResponse,
-    ServerStatus, ServerSnapshotResponse,
 )
 
 __all__ = [
@@ -24,7 +21,4 @@ __all__ = [
     "InfraCostCreate", "InfraCostUpdate", "InfraCostResponse",
     "TodoCreate", "TodoUpdate", "TodoResponse",
     "DbInfo", "TableInfo", "SqlRequest", "SqlResult", "SqlHistoryResponse",
-    "MigrationRequest", "MigrationResponse",
-    "DeployRequest", "DeploymentResponse",
-    "ServerStatus", "ServerSnapshotResponse",
 ]

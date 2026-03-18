@@ -4,15 +4,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
 from app.schemas.infra import (
     SqlRequest, SqlResult, SqlHistoryResponse,
-    DeployRequest, DeploymentResponse,
 )
 from app.services.db_admin_service import (
     list_databases, get_table_info, execute_sql, save_sql_history,
     get_sql_history, get_db_roles, grant_permission,
-)
-from app.services.deploy_service import get_all_deployments, get_deployments, trigger_deploy
-from app.services.server_monitor_service import (
-    get_latest_snapshots, get_server_history,
 )
 from app.services.ssh_service import execute_ssh_command, execute_rds_sql
 import os
@@ -103,42 +98,6 @@ async def rds_metrics(db_alias: str):
     except Exception as e:
         metrics["error"] = str(e)
     return metrics
-
-
-# === 배포 ===
-
-@router.get("/deployments", response_model=list[DeploymentResponse])
-async def all_deployments(db: AsyncSession = Depends(get_db)):
-    return await get_all_deployments(db)
-
-
-@router.get("/deployments/{project_id}", response_model=list[DeploymentResponse])
-async def project_deployments(project_id: int, db: AsyncSession = Depends(get_db)):
-    return await get_deployments(db, project_id)
-
-
-@router.post("/deploy", response_model=DeploymentResponse, status_code=201)
-async def deploy(data: DeployRequest, db: AsyncSession = Depends(get_db)):
-    return await trigger_deploy(db, data)
-
-
-# === 서버 모니터링 ===
-
-@router.get("/servers")
-async def servers(db: AsyncSession = Depends(get_db)):
-    return await get_latest_snapshots(db)
-
-
-@router.get("/servers/{server_name}/history")
-async def server_history(server_name: str, hours: int = 24, db: AsyncSession = Depends(get_db)):
-    snapshots = await get_server_history(db, server_name, hours)
-    return [
-        {
-            "cpu_pct": float(s.cpu_pct), "memory_pct": float(s.memory_pct),
-            "disk_pct": float(s.disk_pct), "collected_at": s.collected_at.isoformat(),
-        }
-        for s in snapshots
-    ]
 
 
 # === SSH ===
