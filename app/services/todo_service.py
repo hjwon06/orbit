@@ -149,6 +149,72 @@ async def ai_recommend_todos(db: AsyncSession, project_id: int) -> list[Todo]:
         return await _fallback_recommendations(db, project_id)
 
 
+async def reprioritize_todos(db: AsyncSession, project_id: int) -> dict:
+    """GPT-4o로 열린 할일의 우선순위를 재정렬."""
+    settings = get_settings()
+    if not settings.openai_api_key or not HAS_HTTPX:
+        return {"error": "OpenAI 키가 설정되지 않았습니다."}
+
+    open_todos_result = await db.execute(
+        select(Todo).where(Todo.project_id == project_id, Todo.status == "open")
+    )
+    open_todos = open_todos_result.scalars().all()
+    if not open_todos:
+        return {"error": "열린 할일이 없습니다."}
+
+    milestones_result = await db.execute(
+        select(Milestone).where(Milestone.project_id == project_id).order_by(Milestone.sort_order)
+    )
+    milestones = milestones_result.scalars().all()
+
+    todo_list = "\n".join(
+        f'- id={t.id} | "{t.title}" | 현재={t.priority} | source={t.source}'
+        for t in open_todos
+    )
+    ms_list = "\n".join(f'- {m.title} ({m.status})' for m in milestones)
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                "https://api.openai.com/v1/chat/completions",
+                headers={"Authorization": f"Bearer {settings.openai_api_key}"},
+                json={
+                    "model": "gpt-4o",
+                    "messages": [
+                        {"role": "system", "content": "당신은 1인 개발자의 프로젝트 관제 AI입니다.\n이 개발자는 혼자 로컬에서 작업합니다.\n\n열린 할일의 우선순위를 재평가하세요.\n각 할일에 대해 high/medium/low를 판단하고 이유를 한 줄로 설명하세요.\n\nJSON 배열로 반환: [{\"id\": 숫자, \"priority\": \"high|medium|low\", \"reasoning\": \"이유\"}]\nJSON만 반환하세요."},
+                        {"role": "user", "content": f"마일스톤:\n{ms_list}\n\n열린 할일:\n{todo_list}"},
+                    ],
+                    "temperature": 0.5,
+                    "max_tokens": 1000,
+                },
+            )
+            resp.raise_for_status()
+            content = resp.json()["choices"][0]["message"]["content"].strip()
+            if content.startswith("```"):
+                content = content.split("\n", 1)[1].rsplit("```", 1)[0]
+
+            import json
+            items = json.loads(content)
+            updated = 0
+            for item in items:
+                todo_id = item.get("id")
+                new_priority = item.get("priority", "medium")
+                reasoning = item.get("reasoning", "")
+                if todo_id and new_priority in ("high", "medium", "low"):
+                    from sqlalchemy import update
+                    await db.execute(
+                        update(Todo).where(Todo.id == todo_id).values(
+                            priority=new_priority, ai_reasoning=reasoning
+                        )
+                    )
+                    updated += 1
+            await db.commit()
+            return {"ok": True, "updated": updated, "details": items}
+
+    except Exception as e:
+        return {"error": f"우선순위 재정렬 실패: {str(e)}"}
+
+
 async def _fallback_recommendations(db: AsyncSession, project_id: int) -> list[Todo]:
     """OpenAI 키가 없을 때 기본 추천."""
     milestones_result = await db.execute(

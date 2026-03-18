@@ -15,6 +15,11 @@
                 <svg class="w-3.5 h-3.5" :class="recommending && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                 <span x-text="recommending ? 'AI 분석 중...' : 'AI 추천 받기'"></span>
             </button>
+            <button @click="reprioritize()" :disabled="reprioritizing"
+                    class="bg-warning-light text-warning text-xs px-3 py-1.5 rounded-2xl hover:bg-warning/20 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" :class="reprioritizing && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 4h13M3 8h9m-9 4h6m4 0l4-4m0 0l4 4m-4-4v12"/></svg>
+                <span x-text="reprioritizing ? '재정렬 중...' : '우선순위 재정렬'"></span>
+            </button>
             <button @click="syncGitHubIssues()" :disabled="syncingIssues"
                     class="bg-gray-100 text-gray-700 text-xs px-3 py-1.5 rounded-2xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" :class="syncingIssues && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
@@ -150,6 +155,7 @@ document.addEventListener('alpine:init', () => {
         todos: [],
         showModal: false,
         recommending: false,
+        reprioritizing: false,
         syncingIssues: false,
         form: { id: null, title: '', description: '', priority: 'medium' },
 
@@ -218,6 +224,26 @@ document.addEventListener('alpine:init', () => {
                 }
             } finally {
                 this.recommending = false;
+            }
+        },
+
+        async reprioritize() {
+            this.reprioritizing = true;
+            try {
+                const res = await fetch(`/api/todos/project/${window.__projectId}/reprioritize`, { method: 'POST' });
+                const result = await res.json();
+                if (result.ok) {
+                    // Reload todos
+                    const todosRes = await fetch(`/api/todos/project/${window.__projectId}`);
+                    if (todosRes.ok) this.todos = await todosRes.json();
+                    alert(`우선순위 재정렬 완료: ${result.updated}건 업데이트`);
+                } else {
+                    alert(result.error || '재정렬 실패');
+                }
+            } catch (e) {
+                alert('재정렬 중 오류: ' + e.message);
+            } finally {
+                this.reprioritizing = false;
             }
         },
 

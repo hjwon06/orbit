@@ -4,7 +4,7 @@ from app.database import get_db
 from app.schemas.todo import TodoCreate, TodoUpdate, TodoResponse
 from app.services.todo_service import (
     get_todos_by_project, create_todo, update_todo, delete_todo,
-    ai_recommend_todos,
+    ai_recommend_todos, reprioritize_todos,
 )
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])
@@ -38,3 +38,8 @@ async def remove_todo(todo_id: int, db: AsyncSession = Depends(get_db)):
 @router.post("/project/{project_id}/recommend", response_model=list[TodoResponse])
 async def recommend_todos(project_id: int, db: AsyncSession = Depends(get_db)):
     return await ai_recommend_todos(db, project_id)
+
+
+@router.post("/project/{project_id}/reprioritize")
+async def reprioritize(project_id: int, db: AsyncSession = Depends(get_db)):
+    return await reprioritize_todos(db, project_id)
