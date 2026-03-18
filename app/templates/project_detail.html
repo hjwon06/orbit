@@ -30,6 +30,53 @@
         </div>
     </div>
 
+    <!-- Status summary -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
+        <!-- 마일스톤 진행률 -->
+        <div class="bg-card border border-border rounded-lg p-4">
+            <p class="text-[11px] text-muted mb-2">마일스톤 진행률</p>
+            <div class="flex items-end gap-2 mb-2">
+                <p class="text-xl font-semibold">{{ summary.ms_pct }}%</p>
+                <p class="text-[11px] text-muted pb-0.5">{{ summary.ms_done }}/{{ summary.ms_total }}</p>
+            </div>
+            <div class="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div class="h-full bg-accent rounded-full transition-all" style="width: {{ summary.ms_pct }}%"></div>
+            </div>
+        </div>
+
+        <!-- 이번주 커밋 -->
+        <div class="bg-card border border-border rounded-lg p-4">
+            <p class="text-[11px] text-muted mb-2">이번주 커밋</p>
+            <p class="text-xl font-semibold">{{ summary.week_commits }}</p>
+            <p class="text-[11px] mt-1">
+                <span class="text-success">+{{ summary.week_add }}</span>
+                <span class="text-danger ml-1">-{{ summary.week_del }}</span>
+            </p>
+        </div>
+
+        <!-- 열린 할일 -->
+        <div class="bg-card border border-border rounded-lg p-4">
+            <p class="text-[11px] text-muted mb-2">열린 할일</p>
+            <p class="text-xl font-semibold {% if summary.open_todos > 0 %}text-warning{% else %}text-muted{% endif %}">{{ summary.open_todos }}</p>
+            {% if summary.high_todos > 0 %}
+            <p class="text-[11px] text-danger mt-1">high {{ summary.high_todos }}개</p>
+            {% else %}
+            <p class="text-[11px] text-muted mt-1">긴급 없음</p>
+            {% endif %}
+        </div>
+
+        <!-- 최근 세션 -->
+        <div class="bg-card border border-border rounded-lg p-4">
+            <p class="text-[11px] text-muted mb-2">최근 세션</p>
+            {% if summary.latest_session %}
+            <p class="text-sm font-medium truncate">{{ summary.latest_session.title }}</p>
+            <p class="text-[11px] text-muted mt-1">{{ summary.latest_session.started_at | kst }}</p>
+            {% else %}
+            <p class="text-sm text-muted">세션 없음</p>
+            {% endif %}
+        </div>
+    </div>
+
     <!-- Edit modal -->
     <div x-show="editing" x-cloak class="fixed inset-0 z-50 flex items-center justify-center bg-black/30" @click.self="editing=false">
         <div class="bg-card border border-border rounded-xl shadow-lg w-full max-w-md mx-4 p-6" @click.stop>

@@ -247,14 +247,91 @@ async def new_project_form(request: Request):
 
 @router.get("/projects/{slug}", response_class=HTMLResponse)
 async def project_detail(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from datetime import date as date_type, timedelta
+    from sqlalchemy import select, func as sqlfunc
     from app.services import get_project_by_slug
+    from app.models import Milestone, Agent, Session as SessionModel, CommitStat, Todo
+
     project = await get_project_by_slug(db, slug)
     if not project:
         from fastapi.exceptions import HTTPException
         raise HTTPException(status_code=404)
+
+    pid = project.id
+
+    # 마일스톤 진행률
+    ms_total_result = await db.execute(
+        select(sqlfunc.count()).select_from(Milestone).where(Milestone.project_id == pid)
+    )
+    ms_total = ms_total_result.scalar() or 0
+    ms_done_result = await db.execute(
+        select(sqlfunc.count()).select_from(Milestone).where(
+            Milestone.project_id == pid, Milestone.status == "done"
+        )
+    )
+    ms_done = ms_done_result.scalar() or 0
+
+    # 최근 세션
+    latest_session_result = await db.execute(
+        select(SessionModel).where(SessionModel.project_id == pid)
+        .order_by(SessionModel.started_at.desc()).limit(1)
+    )
+    latest_session = latest_session_result.scalar_one_or_none()
+
+    # 이번주 커밋
+    today = date_type.today()
+    week_start = today - timedelta(days=today.weekday())
+    week_commits_result = await db.execute(
+        select(
+            sqlfunc.coalesce(sqlfunc.sum(CommitStat.commit_count), 0),
+            sqlfunc.coalesce(sqlfunc.sum(CommitStat.additions), 0),
+            sqlfunc.coalesce(sqlfunc.sum(CommitStat.deletions), 0),
+        ).where(
+            CommitStat.project_id == pid,
+            CommitStat.stat_date >= week_start,
+        )
+    )
+    week_commits, week_add, week_del = week_commits_result.one()
+
+    # 열린 할일
+    open_todos_result = await db.execute(
+        select(sqlfunc.count()).select_from(Todo).where(
+            Todo.project_id == pid, Todo.status == "open"
+        )
+    )
+    open_todos = open_todos_result.scalar() or 0
+    high_todos_result = await db.execute(
+        select(sqlfunc.count()).select_from(Todo).where(
+            Todo.project_id == pid, Todo.status == "open", Todo.priority == "high"
+        )
+    )
+    high_todos = high_todos_result.scalar() or 0
+
+    # 에이전트 상태
+    agents_running_result = await db.execute(
+        select(sqlfunc.count()).select_from(Agent).where(
+            Agent.project_id == pid, Agent.status == "running"
+        )
+    )
+    agents_running = agents_running_result.scalar() or 0
+
+    summary = {
+        "ms_total": ms_total,
+        "ms_done": ms_done,
+        "ms_pct": round(ms_done / ms_total * 100) if ms_total > 0 else 0,
+        "latest_session": latest_session,
+        "week_commits": int(week_commits),
+        "week_add": int(week_add),
+        "week_del": int(week_del),
+        "open_todos": open_todos,
+        "high_todos": high_todos,
+        "agents_running": agents_running,
+    }
+
     return templates.TemplateResponse("project_detail.html", {
         "request": request,
         "project": project,
+        "summary": summary,
         "page_title": project.name,
     })
 
