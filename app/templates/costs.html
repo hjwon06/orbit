@@ -12,18 +12,18 @@
         <div class="flex items-center gap-2">
             <button @click="showActiveOnly = !showActiveOnly"
                     :class="showActiveOnly ? 'bg-accent text-white' : 'bg-surface text-muted border border-border'"
-                    class="text-xs px-3 py-1.5 rounded-lg transition-colors">
+                    class="text-xs px-3 py-1.5 rounded-2xl transition-colors">
                 <span x-text="showActiveOnly ? '활성만' : '전체'"></span>
             </button>
             <button @click="openEditor(null)"
-                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-2xl hover:bg-accent-dark transition-colors">
                 + 추가
             </button>
         </div>
     </div>
 
     <!-- Monthly total -->
-    <div class="bg-card border border-border rounded-lg p-5 mb-4">
+    <div class="bg-card border border-border rounded-2xl p-5 mb-4">
         <p class="text-[11px] text-muted uppercase tracking-wider mb-1">월간 총 비용 (활성)</p>
         <p class="text-2xl font-semibold">$<span x-text="monthlyTotal.toFixed(2)"></span>
             <span class="text-sm text-muted font-normal">/ month</span>
@@ -36,14 +36,14 @@
 
     <!-- Provider breakdown -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-        <div class="md:col-span-1 bg-card border border-border rounded-lg p-4 flex items-center justify-center">
+        <div class="md:col-span-1 bg-card border border-border rounded-2xl p-4 flex items-center justify-center">
             <div style="position:relative; width:160px; height:160px;">
                 <canvas id="costDonut"></canvas>
             </div>
         </div>
         <div class="md:col-span-2 grid grid-cols-2 gap-3 content-start">
             <template x-for="p in providerBreakdown" :key="p.name">
-                <div class="bg-card border border-border rounded-lg p-3">
+                <div class="bg-card border border-border rounded-2xl p-3">
                     <p class="text-[11px] text-muted truncate" x-text="p.name"></p>
                     <p class="text-lg font-semibold" x-text="'$' + p.total.toFixed(2)"></p>
                     <p class="text-[10px] text-muted" x-text="p.count + '개 서비스'"></p>
@@ -55,7 +55,7 @@
     <!-- Service list -->
     <div class="space-y-2">
         <template x-for="c in filteredCosts" :key="c.id">
-            <div class="flex items-center justify-between bg-card border border-border rounded-lg px-4 py-3 group/row hover:shadow-sm transition-shadow"
+            <div class="flex items-center justify-between bg-card border border-border rounded-2xl px-4 py-3 group/row hover:shadow-sm transition-shadow"
                  :class="!c.is_active ? 'opacity-50' : ''">
                 <div class="flex items-center gap-4 flex-1 min-w-0">
                     <!-- Provider badge -->
@@ -87,7 +87,7 @@
     </div>
 
     <!-- Empty state -->
-    <div x-show="costs.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-lg">
+    <div x-show="costs.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-2xl">
         <p class="text-sm text-muted mb-2">등록된 인프라 비용이 없습니다</p>
         <button @click="openEditor(null)" class="text-sm text-accent hover:text-accent-dark font-medium">첫 서비스 추가하기 &rarr;</button>
     </div>
@@ -104,7 +104,7 @@
                                 <label class="text-[11px] text-muted block mb-1">프로바이더</label>
                                 <input x-model="form.provider" type="text" required placeholder="Vultr, AWS, Cloudflare"
                                        list="providers"
-                                       class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                       class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                                 <datalist id="providers">
                                     <option value="Vultr">
                                     <option value="AWS">
@@ -118,19 +118,19 @@
                             <div>
                                 <label class="text-[11px] text-muted block mb-1">서비스명</label>
                                 <input x-model="form.service_name" type="text" required placeholder="VPS Seoul 2GB"
-                                       class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                       class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                             </div>
                         </div>
                         <div class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="text-[11px] text-muted block mb-1">비용 (USD)</label>
                                 <input x-model.number="form.cost_usd" type="number" step="0.01" min="0" required
-                                       class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                       class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                             </div>
                             <div>
                                 <label class="text-[11px] text-muted block mb-1">결제 주기</label>
                                 <select x-model="form.billing_cycle"
-                                        class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                        class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                                     <option value="monthly">Monthly</option>
                                     <option value="yearly">Yearly</option>
                                     <option value="one-time">One-time</option>
@@ -140,7 +140,7 @@
                         <div>
                             <label class="text-[11px] text-muted block mb-1">메모 (선택)</label>
                             <input x-model="form.notes" type="text" placeholder="서울 리전, 2vCPU/2GB"
-                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                         </div>
                         <div class="flex items-center gap-2">
                             <input x-model="form.is_active" type="checkbox" id="is_active"
@@ -149,8 +149,8 @@
                         </div>
                     </div>
                     <div class="flex justify-end gap-2 mt-5">
-                        <button type="button" @click="showModal = false" class="px-3 py-1.5 text-xs text-muted rounded-lg">취소</button>
-                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark">저장</button>
+                        <button type="button" @click="showModal = false" class="px-3 py-1.5 text-xs text-muted rounded-2xl">취소</button>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-2xl hover:bg-accent-dark">저장</button>
                     </div>
                 </form>
             </div>

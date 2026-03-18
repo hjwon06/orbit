@@ -28,13 +28,13 @@
     <!-- DB 관리 탭 -->
     <div id="panel-db">
         <div class="flex gap-3 mb-4">
-            <select id="db-select" class="px-3 py-2 text-sm border border-border rounded-lg bg-surface" onchange="loadTables()">
+            <select id="db-select" class="px-3 py-2 text-sm border border-border rounded-2xl bg-surface" onchange="loadTables()">
                 <option value="">DB 선택...</option>
             </select>
-            <button onclick="loadRoles()" class="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-surface">역할/권한</button>
+            <button onclick="loadRoles()" class="px-3 py-1.5 text-xs border border-border rounded-2xl hover:bg-surface">역할/권한</button>
         </div>
         <div id="tables-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6"></div>
-        <div class="bg-card border border-border rounded-lg p-4 mb-4">
+        <div class="bg-card border border-border rounded-2xl p-4 mb-4">
             <div class="flex items-center justify-between mb-2">
                 <p class="text-xs font-medium">SQL 쿼리</p>
                 <div class="flex gap-2">
@@ -42,18 +42,18 @@
                     <button onclick="loadHistory()" class="px-3 py-1 text-xs border border-border rounded hover:bg-surface">이력</button>
                 </div>
             </div>
-            <textarea id="sql-input" class="sql-editor w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20"
+            <textarea id="sql-input" class="sql-editor w-full px-3 py-2 text-sm border border-border rounded-2xl bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20"
                       placeholder="SELECT * FROM ob_projects LIMIT 10;"
                       onkeydown="if(event.ctrlKey && event.key==='Enter'){runSql();event.preventDefault()}"></textarea>
         </div>
-        <div id="sql-result" class="bg-card border border-border rounded-lg overflow-hidden">
+        <div id="sql-result" class="bg-card border border-border rounded-2xl overflow-hidden">
             <div class="p-3 text-xs text-muted">쿼리를 실행하면 결과가 여기에 표시됩니다</div>
         </div>
-        <div id="roles-panel" class="hidden mt-4 bg-card border border-border rounded-lg p-4">
+        <div id="roles-panel" class="hidden mt-4 bg-card border border-border rounded-2xl p-4">
             <p class="text-xs font-medium mb-3">DB 역할 및 권한</p>
             <div id="roles-list"></div>
         </div>
-        <div id="history-panel" class="hidden mt-4 bg-card border border-border rounded-lg p-4">
+        <div id="history-panel" class="hidden mt-4 bg-card border border-border rounded-2xl p-4">
             <p class="text-xs font-medium mb-3">최근 쿼리 이력</p>
             <div id="history-list" class="space-y-1"></div>
         </div>
@@ -62,29 +62,29 @@
     <!-- RDS 모니터링 탭 -->
     <div id="panel-rds" class="hidden">
         <div class="flex gap-3 mb-6">
-            <select id="rds-db" class="px-3 py-2 text-sm border border-border rounded-lg bg-surface" onchange="loadRdsMetrics()">
+            <select id="rds-db" class="px-3 py-2 text-sm border border-border rounded-2xl bg-surface" onchange="loadRdsMetrics()">
                 <option value="">DB 선택...</option>
             </select>
         </div>
         <div class="grid grid-cols-3 gap-4 mb-6">
-            <div class="bg-card border border-border rounded-lg p-4">
+            <div class="bg-card border border-border rounded-2xl p-4">
                 <p class="text-xs text-muted mb-1">활성 커넥션</p>
                 <p class="text-2xl font-semibold" id="rds-active">-</p>
             </div>
-            <div class="bg-card border border-border rounded-lg p-4">
+            <div class="bg-card border border-border rounded-2xl p-4">
                 <p class="text-xs text-muted mb-1">전체 커넥션</p>
                 <p class="text-2xl font-semibold" id="rds-total">-</p>
             </div>
-            <div class="bg-card border border-border rounded-lg p-4">
+            <div class="bg-card border border-border rounded-2xl p-4">
                 <p class="text-xs text-muted mb-1">DB 사이즈</p>
                 <p class="text-2xl font-semibold" id="rds-size">-</p>
             </div>
         </div>
-        <div class="bg-card border border-border rounded-lg p-4 mb-4">
+        <div class="bg-card border border-border rounded-2xl p-4 mb-4">
             <p class="text-xs font-medium mb-3">테이블 사이즈 Top 10</p>
             <div id="rds-tables" class="result-table"></div>
         </div>
-        <div class="bg-card border border-border rounded-lg p-4">
+        <div class="bg-card border border-border rounded-2xl p-4">
             <p class="text-xs font-medium mb-3">슬로우 쿼리 (100ms+)</p>
             <div id="rds-slow" class="space-y-2"></div>
         </div>
@@ -96,7 +96,7 @@
 
             <!-- EC2 패널 -->
             <div>
-                <div class="bg-card border border-border rounded-lg p-4 mb-3">
+                <div class="bg-card border border-border rounded-2xl p-4 mb-3">
                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-success"></span>
@@ -118,11 +118,11 @@
                         </div>
                     </div>
                     <input type="text" id="ssh-input"
-                           class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                           class="w-full px-3 py-2 text-sm border border-border rounded-2xl bg-surface font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
                            placeholder="ls -la"
                            onkeydown="if(event.ctrlKey && event.key==='Enter'){runSsh();event.preventDefault()}">
                 </div>
-                <div id="ssh-result" class="bg-card border border-border rounded-lg overflow-hidden mb-3">
+                <div id="ssh-result" class="bg-card border border-border rounded-2xl overflow-hidden mb-3">
                     <div class="p-3 text-xs text-muted">Shell 명령어를 입력하세요</div>
                 </div>
                 <div class="flex flex-wrap gap-1.5">
@@ -137,7 +137,7 @@
 
             <!-- RDS 패널 -->
             <div>
-                <div class="bg-card border border-border rounded-lg p-4 mb-3">
+                <div class="bg-card border border-border rounded-2xl p-4 mb-3">
                     <div class="flex items-center justify-between mb-2">
                         <div class="flex items-center gap-2">
                             <span class="w-2 h-2 rounded-full bg-accent"></span>
@@ -154,11 +154,11 @@
                         </div>
                     </div>
                     <input type="text" id="rds-input"
-                           class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                           class="w-full px-3 py-2 text-sm border border-border rounded-2xl bg-surface font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
                            placeholder="SELECT current_database(), current_user;"
                            onkeydown="if(event.ctrlKey && event.key==='Enter'){runRds();event.preventDefault()}">
                 </div>
-                <div id="rds-result" class="bg-card border border-border rounded-lg overflow-hidden mb-3">
+                <div id="rds-result" class="bg-card border border-border rounded-2xl overflow-hidden mb-3">
                     <div class="p-3 text-xs text-muted">SQL을 입력하세요 (psql 경유)</div>
                 </div>
                 <div class="flex flex-wrap gap-1.5">
@@ -204,7 +204,7 @@ async function loadTables() {
     const res = await fetch(`/api/infra/databases/${alias}/tables`);
     const data = await res.json();
     document.getElementById('tables-grid').innerHTML = data.map(t => `
-        <div class="bg-card border border-border rounded-lg p-3 cursor-pointer hover:border-accent/30 transition-all"
+        <div class="bg-card border border-border rounded-2xl p-3 cursor-pointer hover:border-accent/30 transition-all"
              onclick="document.getElementById('sql-input').value='SELECT * FROM ${t.name} LIMIT 20;';runSql()">
             <p class="text-sm font-medium truncate">${t.name}</p>
             <div class="flex items-center justify-between mt-1">

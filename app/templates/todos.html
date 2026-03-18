@@ -11,17 +11,17 @@
         </div>
         <div class="flex items-center gap-2">
             <button @click="recommend()" :disabled="recommending"
-                    class="bg-accent-light text-accent-dark text-xs px-3 py-1.5 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                    class="bg-accent-light text-accent-dark text-xs px-3 py-1.5 rounded-2xl hover:bg-accent/20 transition-colors disabled:opacity-50 flex items-center gap-1.5">
                 <svg class="w-3.5 h-3.5" :class="recommending && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
                 <span x-text="recommending ? 'AI 분석 중...' : 'AI 추천 받기'"></span>
             </button>
             <button @click="syncGitHubIssues()" :disabled="syncingIssues"
-                    class="bg-gray-100 text-gray-700 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center gap-1">
+                    class="bg-gray-100 text-gray-700 text-xs px-3 py-1.5 rounded-2xl hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center gap-1">
                 <svg class="w-3.5 h-3.5" :class="syncingIssues && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
                 <span x-text="syncingIssues ? '동기화 중...' : 'GitHub 이슈'"></span>
             </button>
             <button @click="openEditor(null)"
-                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-2xl hover:bg-accent-dark transition-colors">
                 + 직접 추가
             </button>
         </div>
@@ -29,19 +29,19 @@
 
     <!-- Stats -->
     <div class="grid grid-cols-4 gap-3 mb-6">
-        <div class="bg-card border border-border rounded-lg p-3">
+        <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-muted">전체</p>
             <p class="text-xl font-semibold" x-text="todos.length"></p>
         </div>
-        <div class="bg-card border border-border rounded-lg p-3">
+        <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-accent">열림</p>
             <p class="text-xl font-semibold text-accent" x-text="todos.filter(t => t.status === 'open').length"></p>
         </div>
-        <div class="bg-card border border-border rounded-lg p-3">
+        <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-success">완료</p>
             <p class="text-xl font-semibold text-success" x-text="todos.filter(t => t.status === 'done').length"></p>
         </div>
-        <div class="bg-card border border-border rounded-lg p-3">
+        <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-warning">AI 추천</p>
             <p class="text-xl font-semibold text-warning" x-text="todos.filter(t => t.source === 'ai').length"></p>
         </div>
@@ -50,7 +50,7 @@
     <!-- Todo list -->
     <div class="space-y-2">
         <template x-for="t in sortedTodos" :key="t.id">
-            <div class="flex items-start gap-3 bg-card border border-border rounded-lg px-4 py-3 group/row hover:shadow-sm transition-shadow"
+            <div class="flex items-start gap-3 bg-card border border-border rounded-2xl px-4 py-3 group/row hover:shadow-sm transition-shadow"
                  :class="t.status === 'done' ? 'opacity-50' : ''">
                 <!-- Checkbox -->
                 <button @click="toggleStatus(t)" class="mt-0.5 shrink-0">
@@ -93,7 +93,7 @@
     </div>
 
     <!-- Empty -->
-    <div x-show="todos.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-lg">
+    <div x-show="todos.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-2xl">
         <p class="text-sm text-muted mb-2">할일이 없습니다</p>
         <button @click="recommend()" class="text-sm text-accent hover:text-accent-dark font-medium">AI에게 추천받기 &rarr;</button>
     </div>
@@ -108,17 +108,17 @@
                         <div>
                             <label class="text-[11px] text-muted block mb-1">제목</label>
                             <input x-model="form.title" type="text" required
-                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                         </div>
                         <div>
                             <label class="text-[11px] text-muted block mb-1">설명 (선택)</label>
                             <textarea x-model="form.description" rows="3"
-                                      class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white resize-y"></textarea>
+                                      class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white resize-y"></textarea>
                         </div>
                         <div>
                             <label class="text-[11px] text-muted block mb-1">우선순위</label>
                             <select x-model="form.priority"
-                                    class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                    class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                                 <option value="high">High</option>
                                 <option value="medium">Medium</option>
                                 <option value="low">Low</option>
@@ -126,8 +126,8 @@
                         </div>
                     </div>
                     <div class="flex justify-end gap-2 mt-5">
-                        <button type="button" @click="showModal = false" class="px-3 py-1.5 text-xs text-muted rounded-lg">취소</button>
-                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark">저장</button>
+                        <button type="button" @click="showModal = false" class="px-3 py-1.5 text-xs text-muted rounded-2xl">취소</button>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-2xl hover:bg-accent-dark">저장</button>
                     </div>
                 </form>
             </div>

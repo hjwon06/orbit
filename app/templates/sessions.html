@@ -24,14 +24,14 @@
             <h2 class="text-lg font-semibold tracking-tight">세션 로그</h2>
         </div>
         <button @click="openStart()"
-                class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+                class="bg-accent text-white text-xs px-3 py-1.5 rounded-2xl hover:bg-accent-dark transition-colors">
             + 세션 시작
         </button>
     </div>
 
     <!-- Running sessions banner -->
     <template x-if="runningSessions.length > 0">
-        <div class="bg-accent-light border border-accent/20 rounded-lg px-4 py-3 mb-6">
+        <div class="bg-accent-light border border-accent/20 rounded-2xl px-4 py-3 mb-6">
             <p class="text-xs text-accent-dark font-medium mb-2">진행 중인 세션</p>
             <template x-for="s in runningSessions" :key="s.id">
                 <div class="flex items-center justify-between py-1.5">
@@ -56,7 +56,7 @@
             <p class="text-xs text-muted uppercase tracking-wider mb-3" x-text="group.label"></p>
             <div class="space-y-3">
                 <template x-for="s in group.sessions" :key="s.id">
-                    <div class="bg-card border border-border rounded-lg p-4 hover:shadow-sm transition-shadow group/card">
+                    <div class="bg-card border border-border rounded-2xl p-4 hover:shadow-sm transition-shadow group/card">
                         <div class="flex items-start justify-between">
                             <div class="flex items-start gap-3 min-w-0 flex-1">
                                 <!-- Status dot -->
@@ -117,7 +117,7 @@
     </template>
 
     <!-- Empty state -->
-    <div x-show="sessions.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-lg">
+    <div x-show="sessions.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-2xl">
         <p class="text-sm text-muted mb-2">아직 세션 기록이 없습니다</p>
         <button @click="openStart()" class="text-sm text-accent hover:text-accent-dark font-medium">
             첫 세션 시작하기 &rarr;
@@ -134,12 +134,12 @@
                         <div>
                             <label class="text-[11px] text-muted block mb-1">제목</label>
                             <input x-model="startForm.title" type="text" required placeholder="무슨 작업을 시작하나요?"
-                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                         </div>
                         <div>
                             <label class="text-[11px] text-muted block mb-1">에이전트 (선택)</label>
                             <select x-model="startForm.agent_code"
-                                    class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                    class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                                 <option value="">에이전트 선택 (선택사항)</option>
                                 <template x-for="a in agents" :key="a.agent_code">
                                     <option :value="a.agent_code" x-text="a.agent_code + ' — ' + a.agent_name"></option>
@@ -149,9 +149,9 @@
                     </div>
                     <div class="flex justify-end gap-2 mt-5">
                         <button type="button" @click="showStart = false"
-                                class="px-3 py-1.5 text-xs text-muted hover:text-gray-700 rounded-lg">취소</button>
+                                class="px-3 py-1.5 text-xs text-muted hover:text-gray-700 rounded-2xl">취소</button>
                         <button type="submit"
-                                class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark">시작</button>
+                                class="px-3 py-1.5 text-xs bg-accent text-white rounded-2xl hover:bg-accent-dark">시작</button>
                     </div>
                 </form>
             </div>
@@ -168,7 +168,7 @@
                         <div>
                             <label class="text-[11px] text-muted block mb-1">제목</label>
                             <input x-model="editorForm.title" type="text" required
-                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                         </div>
 
                         <!-- Markdown editor -->
@@ -186,16 +186,16 @@
                             </div>
                             <textarea x-show="!previewMode" x-model="editorForm.summary"
                                       rows="10" placeholder="- 오늘 한 일&#10;- 해결한 문제&#10;- 내일 할 일"
-                                      class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white font-mono resize-y"></textarea>
+                                      class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white font-mono resize-y"></textarea>
                             <div x-show="previewMode"
-                                 class="w-full min-h-[240px] px-3 py-2 border border-border rounded-lg bg-white markdown-body"
+                                 class="w-full min-h-[240px] px-3 py-2 border border-border rounded-2xl bg-white markdown-body"
                                  x-html="renderMd(editorForm.summary)"></div>
                         </div>
 
                         <div x-show="editorMode === 'finish'">
                             <label class="text-[11px] text-muted block mb-1">상태</label>
                             <select x-model="editorForm.status"
-                                    class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                    class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
                                 <option value="done">완료</option>
                                 <option value="error">에러</option>
                             </select>
@@ -203,9 +203,9 @@
                     </div>
                     <div class="flex justify-end gap-2 mt-5">
                         <button type="button" @click="closeEditor()"
-                                class="px-3 py-1.5 text-xs text-muted hover:text-gray-700 rounded-lg">취소</button>
+                                class="px-3 py-1.5 text-xs text-muted hover:text-gray-700 rounded-2xl">취소</button>
                         <button type="submit"
-                                class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark"
+                                class="px-3 py-1.5 text-xs bg-accent text-white rounded-2xl hover:bg-accent-dark"
                                 x-text="editorMode === 'finish' ? '종료 + 저장' : '저장'"></button>
                     </div>
                 </form>

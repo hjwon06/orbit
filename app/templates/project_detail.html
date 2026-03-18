@@ -25,15 +25,15 @@
             {% endif %}
         </div>
         <div class="flex items-center gap-2 shrink-0">
-            <button @click="openEdit()" class="px-3 py-1.5 text-xs font-medium text-accent border border-accent/30 rounded-lg hover:bg-accent-light transition-colors">수정</button>
-            <button @click="confirmDelete()" class="px-3 py-1.5 text-xs font-medium text-danger border border-danger/30 rounded-lg hover:bg-danger-light transition-colors">삭제</button>
+            <button @click="openEdit()" class="px-3 py-1.5 text-xs font-medium text-accent border border-accent/30 rounded-2xl hover:bg-accent-light transition-colors">수정</button>
+            <button @click="confirmDelete()" class="px-3 py-1.5 text-xs font-medium text-danger border border-danger/30 rounded-2xl hover:bg-danger-light transition-colors">삭제</button>
         </div>
     </div>
 
     <!-- Status summary -->
     <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-8">
         <!-- 마일스톤 진행률 -->
-        <div class="bg-card border border-border rounded-lg p-4">
+        <div class="bg-card border border-border rounded-2xl p-4">
             <p class="text-[11px] text-muted mb-2">마일스톤 진행률</p>
             <div class="flex items-end gap-2 mb-2">
                 <p class="text-xl font-semibold">{{ summary.ms_pct }}%</p>
@@ -45,7 +45,7 @@
         </div>
 
         <!-- 이번주 커밋 -->
-        <div class="bg-card border border-border rounded-lg p-4">
+        <div class="bg-card border border-border rounded-2xl p-4">
             <p class="text-[11px] text-muted mb-2">이번주 커밋</p>
             <p class="text-xl font-semibold">{{ summary.week_commits }}</p>
             <p class="text-[11px] mt-1">
@@ -55,7 +55,7 @@
         </div>
 
         <!-- 열린 할일 -->
-        <div class="bg-card border border-border rounded-lg p-4">
+        <div class="bg-card border border-border rounded-2xl p-4">
             <p class="text-[11px] text-muted mb-2">열린 할일</p>
             <p class="text-xl font-semibold {% if summary.open_todos > 0 %}text-warning{% else %}text-muted{% endif %}">{{ summary.open_todos }}</p>
             {% if summary.high_todos > 0 %}
@@ -66,7 +66,7 @@
         </div>
 
         <!-- 최근 세션 -->
-        <div class="bg-card border border-border rounded-lg p-4">
+        <div class="bg-card border border-border rounded-2xl p-4">
             <p class="text-[11px] text-muted mb-2">최근 세션</p>
             {% if summary.latest_session %}
             <p class="text-sm font-medium truncate">{{ summary.latest_session.title }}</p>
@@ -84,24 +84,24 @@
             <div class="space-y-3">
                 <div>
                     <label class="text-[11px] text-muted block mb-1">프로젝트명</label>
-                    <input x-model="form.name" class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent">
+                    <input x-model="form.name" class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent">
                 </div>
                 <div>
                     <label class="text-[11px] text-muted block mb-1">설명</label>
-                    <textarea x-model="form.description" rows="2" class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent"></textarea>
+                    <textarea x-model="form.description" rows="2" class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent"></textarea>
                 </div>
                 <div>
                     <label class="text-[11px] text-muted block mb-1">스택</label>
-                    <input x-model="form.stack" class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent">
+                    <input x-model="form.stack" class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent">
                 </div>
                 <div>
                     <label class="text-[11px] text-muted block mb-1">GitHub Repo URL</label>
-                    <input x-model="form.repo_url" class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent" placeholder="https://github.com/...">
+                    <input x-model="form.repo_url" class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent" placeholder="https://github.com/...">
                 </div>
                 <div class="grid grid-cols-2 gap-3">
                     <div>
                         <label class="text-[11px] text-muted block mb-1">상태</label>
-                        <select x-model="form.status" class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent">
+                        <select x-model="form.status" class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent">
                             <option value="active">active</option>
                             <option value="paused">paused</option>
                             <option value="archived">archived</option>
@@ -109,20 +109,20 @@
                     </div>
                     <div>
                         <label class="text-[11px] text-muted block mb-1">색상</label>
-                        <input x-model="form.color" type="color" class="w-full h-9 border border-border rounded-lg cursor-pointer">
+                        <input x-model="form.color" type="color" class="w-full h-9 border border-border rounded-2xl cursor-pointer">
                     </div>
                 </div>
             </div>
             <div class="flex justify-end gap-2 mt-5">
-                <button @click="editing=false" class="px-4 py-2 text-xs text-muted border border-border rounded-lg hover:bg-surface transition-colors">취소</button>
-                <button @click="saveEdit()" class="px-4 py-2 text-xs font-medium text-white bg-accent rounded-lg hover:bg-accent-dark transition-colors">저장</button>
+                <button @click="editing=false" class="px-4 py-2 text-xs text-muted border border-border rounded-2xl hover:bg-surface transition-colors">취소</button>
+                <button @click="saveEdit()" class="px-4 py-2 text-xs font-medium text-white bg-accent rounded-2xl hover:bg-accent-dark transition-colors">저장</button>
             </div>
         </div>
     </div>
 
     <!-- Module cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <a href="/projects/{{ project.slug }}/agents" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+        <a href="/projects/{{ project.slug }}/agents" class="bg-card border border-border rounded-2xl p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
@@ -132,7 +132,7 @@
             </div>
             <p class="text-[11px] text-muted mt-1">{% if summary.agents_running > 0 %}{{ summary.agents_running }}개 실행 중{% else %}에이전트 상태 모니터링{% endif %}</p>
         </a>
-        <a href="/projects/{{ project.slug }}/timeline" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+        <a href="/projects/{{ project.slug }}/timeline" class="bg-card border border-border rounded-2xl p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
@@ -142,7 +142,7 @@
             </div>
             <p class="text-[11px] text-muted mt-1">{{ summary.ms_done }}개 완료 / {{ summary.ms_total }}개 마일스톤</p>
         </a>
-        <a href="/projects/{{ project.slug }}/sessions" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+        <a href="/projects/{{ project.slug }}/sessions" class="bg-card border border-border rounded-2xl p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
@@ -152,7 +152,7 @@
             </div>
             <p class="text-[11px] text-muted mt-1">{% if summary.latest_session %}최근: {{ summary.latest_session.started_at | kst }}{% else %}세션 기록 + 옵시디언 연동{% endif %}</p>
         </a>
-        <a href="/projects/{{ project.slug }}/logs" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+        <a href="/projects/{{ project.slug }}/logs" class="bg-card border border-border rounded-2xl p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
@@ -162,7 +162,7 @@
             </div>
             <p class="text-[11px] text-muted mt-1">이번주 커밋 <span class="text-success">+{{ summary.week_add }}</span> <span class="text-danger">-{{ summary.week_del }}</span></p>
         </a>
-        <a href="/projects/{{ project.slug }}/costs" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+        <a href="/projects/{{ project.slug }}/costs" class="bg-card border border-border rounded-2xl p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
@@ -172,7 +172,7 @@
             </div>
             <p class="text-[11px] text-muted mt-1">{{ summary.costs_total }}개 활성 서비스</p>
         </a>
-        <a href="/projects/{{ project.slug }}/todos" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+        <a href="/projects/{{ project.slug }}/todos" class="bg-card border border-border rounded-2xl p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
                 <div class="flex items-center gap-2">
                     <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
