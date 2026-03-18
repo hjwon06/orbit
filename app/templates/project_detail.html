@@ -122,29 +122,47 @@
 
     <!-- Module cards -->
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <a href="/projects/{{ project.slug }}/agents" class="bg-card border border-border rounded-lg p-6 text-center hover:border-accent/30 hover:shadow-sm transition-all group">
-            <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">에이전트 모니터</p>
-            <p class="text-[11px] text-muted mt-1">에이전트 상태 실시간 모니터링</p>
+        <a href="/projects/{{ project.slug }}/agents" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">에이전트 모니터</p>
+                <span class="text-lg font-semibold {% if summary.agents_running > 0 %}text-accent{% else %}text-muted{% endif %}">{{ summary.agents_total }}</span>
+            </div>
+            <p class="text-[11px] text-muted mt-1">{% if summary.agents_running > 0 %}{{ summary.agents_running }}개 실행 중{% else %}에이전트 상태 모니터링{% endif %}</p>
         </a>
-        <a href="/projects/{{ project.slug }}/timeline" class="bg-card border border-border rounded-lg p-6 text-center hover:border-accent/30 hover:shadow-sm transition-all group">
-            <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">타임라인</p>
-            <p class="text-[11px] text-muted mt-1">마일스톤 간트차트</p>
+        <a href="/projects/{{ project.slug }}/timeline" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">타임라인</p>
+                <span class="text-lg font-semibold text-muted">{{ summary.ms_total }}</span>
+            </div>
+            <p class="text-[11px] text-muted mt-1">{{ summary.ms_done }}개 완료 / {{ summary.ms_total }}개 마일스톤</p>
         </a>
-        <a href="/projects/{{ project.slug }}/sessions" class="bg-card border border-border rounded-lg p-6 text-center hover:border-accent/30 hover:shadow-sm transition-all group">
-            <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">세션 로그</p>
-            <p class="text-[11px] text-muted mt-1">작업 세션 기록 + 옵시디언 연동</p>
+        <a href="/projects/{{ project.slug }}/sessions" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">세션 로그</p>
+                <span class="text-lg font-semibold text-muted">{{ summary.sessions_total }}</span>
+            </div>
+            <p class="text-[11px] text-muted mt-1">{% if summary.latest_session %}최근: {{ summary.latest_session.started_at | kst }}{% else %}세션 기록 + 옵시디언 연동{% endif %}</p>
         </a>
-        <a href="/projects/{{ project.slug }}/logs" class="bg-card border border-border rounded-lg p-6 text-center hover:border-accent/30 hover:shadow-sm transition-all group">
-            <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">작업 로그</p>
-            <p class="text-[11px] text-muted mt-1">일별 작업 기록 + 커밋 히트맵</p>
+        <a href="/projects/{{ project.slug }}/logs" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">작업 로그</p>
+                <span class="text-lg font-semibold text-muted">{{ summary.week_commits }}</span>
+            </div>
+            <p class="text-[11px] text-muted mt-1">이번주 커밋 <span class="text-success">+{{ summary.week_add }}</span> <span class="text-danger">-{{ summary.week_del }}</span></p>
         </a>
-        <a href="/projects/{{ project.slug }}/costs" class="bg-card border border-border rounded-lg p-6 text-center hover:border-accent/30 hover:shadow-sm transition-all group">
-            <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">인프라 비용</p>
-            <p class="text-[11px] text-muted mt-1">프로바이더별 비용 추적</p>
+        <a href="/projects/{{ project.slug }}/costs" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">인프라 비용</p>
+                <span class="text-lg font-semibold text-muted">{{ summary.costs_total }}</span>
+            </div>
+            <p class="text-[11px] text-muted mt-1">{{ summary.costs_total }}개 활성 서비스</p>
         </a>
-        <a href="/projects/{{ project.slug }}/todos" class="bg-card border border-border rounded-lg p-6 text-center hover:border-accent/30 hover:shadow-sm transition-all group">
-            <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">AI 할일</p>
-            <p class="text-[11px] text-muted mt-1">GPT 추천 + 수동 할일 관리</p>
+        <a href="/projects/{{ project.slug }}/todos" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
+            <div class="flex items-center justify-between">
+                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">AI 할일</p>
+                <span class="text-lg font-semibold {% if summary.open_todos > 0 %}text-warning{% else %}text-muted{% endif %}">{{ summary.open_todos }}</span>
+            </div>
+            <p class="text-[11px] text-muted mt-1">{% if summary.high_todos > 0 %}긴급 {{ summary.high_todos }}개 포함{% else %}열린 할일 {{ summary.open_todos }}개{% endif %}</p>
         </a>
     </div>
 </div>

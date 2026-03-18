@@ -308,12 +308,31 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
     high_todos = high_todos_result.scalar() or 0
 
     # 에이전트 상태
+    from app.models import InfraCost
+    agents_total_result = await db.execute(
+        select(sqlfunc.count()).select_from(Agent).where(Agent.project_id == pid)
+    )
+    agents_total = agents_total_result.scalar() or 0
     agents_running_result = await db.execute(
         select(sqlfunc.count()).select_from(Agent).where(
             Agent.project_id == pid, Agent.status == "running"
         )
     )
     agents_running = agents_running_result.scalar() or 0
+
+    # 세션 총 수
+    sessions_total_result = await db.execute(
+        select(sqlfunc.count()).select_from(SessionModel).where(SessionModel.project_id == pid)
+    )
+    sessions_total = sessions_total_result.scalar() or 0
+
+    # 인프라 비용 서비스 수
+    costs_total_result = await db.execute(
+        select(sqlfunc.count()).select_from(InfraCost).where(
+            InfraCost.project_id == pid, InfraCost.is_active == True  # noqa: E712
+        )
+    )
+    costs_total = costs_total_result.scalar() or 0
 
     summary = {
         "ms_total": ms_total,
@@ -325,7 +344,10 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
         "week_del": int(week_del),
         "open_todos": open_todos,
         "high_todos": high_todos,
+        "agents_total": agents_total,
         "agents_running": agents_running,
+        "sessions_total": sessions_total,
+        "costs_total": costs_total,
     }
 
     return templates.TemplateResponse("project_detail.html", {
