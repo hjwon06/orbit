@@ -111,6 +111,9 @@
                         <div class="mt-3 pt-2 border-t border-border" style="height:36px; position:relative;">
                             <canvas class="sparkline" data-values="{{ ps.get('sparkline', [0,0,0,0,0,0,0]) | join(',') }}"></canvas>
                         </div>
+                        {% if ps.get('last_activity') %}
+                        <p class="text-[10px] text-muted mt-2">{{ ps.get('last_activity') | kst }} 활동</p>
+                        {% endif %}
                     </div>
                 </div>
             </a>

@@ -221,6 +221,21 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             vals.append(int(s) + int(c))
         sparklines[pid] = vals
 
+    # --- 프로젝트별 마지막 활동 시간 ---
+    last_session_result = await db.execute(
+        select(SessionModel.project_id, sqlfunc.max(SessionModel.started_at)).where(
+            SessionModel.project_id.in_(project_ids)
+        ).group_by(SessionModel.project_id)
+    )
+    last_session_map = dict(last_session_result.all())
+
+    last_commit_result = await db.execute(
+        select(CommitStat.project_id, sqlfunc.max(CommitStat.created_at)).where(
+            CommitStat.project_id.in_(project_ids)
+        ).group_by(CommitStat.project_id)
+    )
+    last_commit_map = dict(last_commit_result.all())
+
     project_stats = {
         pid: {
             "agents": agents_by_proj.get(pid, 0),
@@ -228,6 +243,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             "sessions": sessions_by_proj.get(pid, 0),
             "commits": commits_by_proj.get(pid, 0),
             "sparkline": sparklines.get(pid, [0]*7),
+            "last_activity": max(filter(None, [last_session_map.get(pid), last_commit_map.get(pid)]), default=None),
         }
         for pid in project_ids
     }
@@ -464,10 +480,16 @@ async def sessions_page(request: Request, slug: str, db: AsyncSession = Depends(
         }
         for s in sessions
     ], default=_json_serial)
+    agents = await get_agents_by_project(db, project.id)
+    agents_json = json.dumps([
+        {"agent_code": a.agent_code, "agent_name": a.agent_name}
+        for a in agents
+    ], default=_json_serial)
     return templates.TemplateResponse("sessions.html", {
         "request": request,
         "project": project,
         "sessions_json": sessions_json,
+        "agents_json": agents_json,
         "page_title": f"{project.name} — 세션 로그",
     })
 

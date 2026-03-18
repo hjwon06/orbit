@@ -138,8 +138,13 @@
                         </div>
                         <div>
                             <label class="text-[11px] text-muted block mb-1">에이전트 (선택)</label>
-                            <input x-model="startForm.agent_code" type="text" placeholder="A0, A3 등"
-                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                            <select x-model="startForm.agent_code"
+                                    class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                <option value="">에이전트 선택 (선택사항)</option>
+                                <template x-for="a in agents" :key="a.agent_code">
+                                    <option :value="a.agent_code" x-text="a.agent_code + ' — ' + a.agent_name"></option>
+                                </template>
+                            </select>
                         </div>
                     </div>
                     <div class="flex justify-end gap-2 mt-5">
@@ -215,6 +220,7 @@
     window.__currentSlug = '{{ project.slug }}';
     window.__projectId = {{ project.id }};
     window.__sessions = {{ sessions_json | safe }};
+    window.__agents = {{ agents_json | safe }};
 </script>
 <script>
 const WEEKDAYS = ['일','월','화','수','목','금','토'];
@@ -222,6 +228,7 @@ const WEEKDAYS = ['일','월','화','수','목','금','토'];
 document.addEventListener('alpine:init', () => {
     Alpine.data('sessionLog', () => ({
         sessions: [],
+        agents: [],
         showStart: false,
         showEditor: false,
         editorMode: 'finish',
@@ -232,6 +239,7 @@ document.addEventListener('alpine:init', () => {
 
         init() {
             this.sessions = window.__sessions || [];
+            this.agents = window.__agents || [];
             setInterval(() => this.$forceUpdate?.(), 60000);
         },
 
