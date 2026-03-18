@@ -9,10 +9,17 @@
             <span class="text-gray-300">/</span>
             <h2 class="text-lg font-semibold tracking-tight">인프라 비용</h2>
         </div>
-        <button @click="openEditor(null)"
-                class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
-            + 추가
-        </button>
+        <div class="flex items-center gap-2">
+            <button @click="showActiveOnly = !showActiveOnly"
+                    :class="showActiveOnly ? 'bg-accent text-white' : 'bg-surface text-muted border border-border'"
+                    class="text-xs px-3 py-1.5 rounded-lg transition-colors">
+                <span x-text="showActiveOnly ? '활성만' : '전체'"></span>
+            </button>
+            <button @click="openEditor(null)"
+                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+                + 추가
+            </button>
+        </div>
     </div>
 
     <!-- Monthly total -->
@@ -47,7 +54,7 @@
 
     <!-- Service list -->
     <div class="space-y-2">
-        <template x-for="c in costs" :key="c.id">
+        <template x-for="c in filteredCosts" :key="c.id">
             <div class="flex items-center justify-between bg-card border border-border rounded-lg px-4 py-3 group/row hover:shadow-sm transition-shadow"
                  :class="!c.is_active ? 'opacity-50' : ''">
                 <div class="flex items-center gap-4 flex-1 min-w-0">
@@ -171,6 +178,7 @@ const PROVIDER_COLORS = {
 document.addEventListener('alpine:init', () => {
     Alpine.data('costsPage', () => ({
         costs: [],
+        showActiveOnly: false,
         showModal: false,
         form: { id: null, provider: '', service_name: '', cost_usd: 0, billing_cycle: 'monthly', is_active: true, notes: '' },
 
@@ -220,6 +228,11 @@ document.addEventListener('alpine:init', () => {
                     },
                 },
             });
+        },
+
+        get filteredCosts() {
+            if (this.showActiveOnly) return this.costs.filter(c => c.is_active);
+            return this.costs;
         },
 
         get activeCosts() { return this.costs.filter(c => c.is_active); },

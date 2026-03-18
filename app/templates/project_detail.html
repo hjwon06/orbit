@@ -124,42 +124,60 @@
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <a href="/projects/{{ project.slug }}/agents" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
-                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">에이전트 모니터</p>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">에이전트 모니터</p>
+                </div>
                 <span class="text-lg font-semibold {% if summary.agents_running > 0 %}text-accent{% else %}text-muted{% endif %}">{{ summary.agents_total }}</span>
             </div>
             <p class="text-[11px] text-muted mt-1">{% if summary.agents_running > 0 %}{{ summary.agents_running }}개 실행 중{% else %}에이전트 상태 모니터링{% endif %}</p>
         </a>
         <a href="/projects/{{ project.slug }}/timeline" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
-                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">타임라인</p>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">타임라인</p>
+                </div>
                 <span class="text-lg font-semibold text-muted">{{ summary.ms_total }}</span>
             </div>
             <p class="text-[11px] text-muted mt-1">{{ summary.ms_done }}개 완료 / {{ summary.ms_total }}개 마일스톤</p>
         </a>
         <a href="/projects/{{ project.slug }}/sessions" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
-                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">세션 로그</p>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">세션 로그</p>
+                </div>
                 <span class="text-lg font-semibold text-muted">{{ summary.sessions_total }}</span>
             </div>
             <p class="text-[11px] text-muted mt-1">{% if summary.latest_session %}최근: {{ summary.latest_session.started_at | kst }}{% else %}세션 기록 + 옵시디언 연동{% endif %}</p>
         </a>
         <a href="/projects/{{ project.slug }}/logs" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
-                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">작업 로그</p>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">작업 로그</p>
+                </div>
                 <span class="text-lg font-semibold text-muted">{{ summary.week_commits }}</span>
             </div>
             <p class="text-[11px] text-muted mt-1">이번주 커밋 <span class="text-success">+{{ summary.week_add }}</span> <span class="text-danger">-{{ summary.week_del }}</span></p>
         </a>
         <a href="/projects/{{ project.slug }}/costs" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
-                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">인프라 비용</p>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">인프라 비용</p>
+                </div>
                 <span class="text-lg font-semibold text-muted">{{ summary.costs_total }}</span>
             </div>
             <p class="text-[11px] text-muted mt-1">{{ summary.costs_total }}개 활성 서비스</p>
         </a>
         <a href="/projects/{{ project.slug }}/todos" class="bg-card border border-border rounded-lg p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
             <div class="flex items-center justify-between">
-                <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">AI 할일</p>
+                <div class="flex items-center gap-2">
+                    <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">AI 할일</p>
+                </div>
                 <span class="text-lg font-semibold {% if summary.open_todos > 0 %}text-warning{% else %}text-muted{% endif %}">{{ summary.open_todos }}</span>
             </div>
             <p class="text-[11px] text-muted mt-1">{% if summary.high_todos > 0 %}긴급 {{ summary.high_todos }}개 포함{% else %}열린 할일 {{ summary.open_todos }}개{% endif %}</p>
