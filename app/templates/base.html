@@ -78,7 +78,11 @@
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255,255,255,.35) !important;
             box-shadow: 0 4px 24px rgba(0,0,0,.04);
+            transition: transform .2s ease, box-shadow .2s ease;
         }
+        /* 카드/버튼 호버 & 클릭 scale */
+        a.group:hover .bg-card, a.group:hover { transform: scale(.98); }
+        a.group:active, button:active { transform: scale(.96); }
         /* 그라데이션 버튼 (bg-accent 오버라이드) */
         .bg-accent {
             background: linear-gradient(135deg, #3B82F6, #8B5CF6) !important;
