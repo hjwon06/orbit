@@ -4,6 +4,7 @@ from app.database import get_db
 from app.schemas.work_log import WorkLogCreate, WorkLogUpdate, WorkLogResponse
 from app.services.work_log_service import (
     get_work_logs_by_project, upsert_work_log, update_work_log, delete_work_log,
+    generate_weekly_summary,
 )
 
 router = APIRouter(prefix="/api/work-logs", tags=["work-logs"])
@@ -32,3 +33,8 @@ async def remove_log(log_id: int, db: AsyncSession = Depends(get_db)):
     if not await delete_work_log(db, log_id):
         raise HTTPException(status_code=404, detail="Work log not found")
     return {"ok": True}
+
+
+@router.post("/project/{project_id}/weekly-summary")
+async def weekly_summary(project_id: int, db: AsyncSession = Depends(get_db)):
+    return await generate_weekly_summary(db, project_id)

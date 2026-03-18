@@ -78,6 +78,27 @@
 
     <!-- ===== WORK TAB ===== -->
     <div x-show="tab === 'work'">
+        <!-- Weekly Summary -->
+        <div class="bg-card border border-border rounded-2xl p-4 mb-4" x-show="weeklySummary || summaryLoading">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-bold flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-accent" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    이번주 AI 요약
+                </p>
+                <button @click="loadWeeklySummary()" :disabled="summaryLoading"
+                        class="text-[10px] text-accent hover:text-accent-dark font-bold" x-text="summaryLoading ? '생성 중...' : '새로고침'"></button>
+            </div>
+            <div x-show="summaryLoading" class="text-xs text-muted py-2">AI가 이번주 작업을 분석 중...</div>
+            <div x-show="weeklySummary && !summaryLoading" class="markdown-body text-sm" x-html="renderMd(weeklySummary)"></div>
+        </div>
+        <div x-show="!weeklySummary && !summaryLoading" class="mb-4">
+            <button @click="loadWeeklySummary()"
+                    class="w-full py-3 text-xs font-bold text-accent bg-accent-light rounded-2xl hover:bg-accent/10 transition-colors flex items-center justify-center gap-1.5">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                이번주 AI 요약 생성
+            </button>
+        </div>
+
         <template x-for="log in workLogs" :key="log.id">
             <div class="bg-card border border-border rounded-2xl p-4 mb-3 group/card hover:shadow-sm transition-shadow">
                 <div class="flex items-start justify-between">
@@ -305,6 +326,8 @@ document.addEventListener('alpine:init', () => {
         showWorkModal: false,
         showStatModal: false,
         syncing: false,
+        summaryLoading: false,
+        weeklySummary: '',
         preview: false,
         workForm: { id: null, log_date: '', content: '' },
         statForm: { id: null, stat_date: '', commit_count: 0, additions: 0, deletions: 0 },
@@ -332,6 +355,23 @@ document.addEventListener('alpine:init', () => {
             this.loadDiary();
             this.workLogs = window.__workLogs || [];
             this.commitStats = window.__commitStats || [];
+        },
+
+        async loadWeeklySummary() {
+            this.summaryLoading = true;
+            try {
+                const res = await fetch(`/api/work-logs/project/${window.__projectId}/weekly-summary`, { method: 'POST' });
+                const data = await res.json();
+                if (data.ok) {
+                    this.weeklySummary = data.summary;
+                } else {
+                    this.weeklySummary = '요약 생성 실패: ' + (data.error || '알 수 없는 오류');
+                }
+            } catch (e) {
+                this.weeklySummary = '요약 생성 중 오류: ' + e.message;
+            } finally {
+                this.summaryLoading = false;
+            }
         },
 
         renderMd(t) {
