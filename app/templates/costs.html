@@ -88,7 +88,7 @@
     <!-- Editor Modal -->
     <template x-if="showModal">
         <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showModal = false">
-            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-[440px]" @click.stop>
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-full max-w-[440px] mx-4" @click.stop>
                 <h3 class="text-sm font-semibold mb-4" x-text="form.id ? '서비스 수정' : '서비스 추가'"></h3>
                 <form @submit.prevent="submitForm()">
                     <div class="space-y-3">

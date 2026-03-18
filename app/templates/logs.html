@@ -194,7 +194,7 @@
     <!-- Work Log Editor Modal -->
     <template x-if="showWorkModal">
         <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showWorkModal = false">
-            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-[560px]" @click.stop>
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-full max-w-[560px] mx-4" @click.stop>
                 <h3 class="text-sm font-semibold mb-4" x-text="workForm.id ? '작업 기록 수정' : '작업 기록 추가'"></h3>
                 <form @submit.prevent="submitWork()">
                     <div class="space-y-3">
@@ -235,7 +235,7 @@
     <!-- Commit Stat Editor Modal -->
     <template x-if="showStatModal">
         <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showStatModal = false">
-            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-96" @click.stop>
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-full max-w-sm mx-4" @click.stop>
                 <h3 class="text-sm font-semibold mb-4">커밋 통계 입력</h3>
                 <form @submit.prevent="submitStat()">
                     <div class="space-y-3">

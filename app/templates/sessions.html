@@ -127,7 +127,7 @@
     <!-- Start Session Modal -->
     <template x-if="showStart">
         <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showStart = false">
-            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-96" @click.stop>
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-full max-w-sm mx-4" @click.stop>
                 <h3 class="text-sm font-semibold mb-4">세션 시작</h3>
                 <form @submit.prevent="submitStart()">
                     <div class="space-y-3">
@@ -156,7 +156,7 @@
     <!-- Finish / Edit Session Modal (with markdown editor) -->
     <template x-if="showEditor">
         <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="closeEditor()">
-            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-[640px] max-h-[80vh] overflow-y-auto" @click.stop>
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-full max-w-[640px] mx-4 max-h-[80vh] overflow-y-auto" @click.stop>
                 <h3 class="text-sm font-semibold mb-4" x-text="editorMode === 'finish' ? '세션 종료' : '세션 수정'"></h3>
                 <form @submit.prevent="submitEditor()">
                     <div class="space-y-3">
