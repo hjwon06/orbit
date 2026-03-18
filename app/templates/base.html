@@ -79,6 +79,19 @@
             border: 1px solid rgba(255,255,255,.35) !important;
             box-shadow: 0 4px 24px rgba(0,0,0,.04);
         }
+        /* 그라데이션 버튼 (bg-accent 오버라이드) */
+        .bg-accent {
+            background: linear-gradient(135deg, #3B82F6, #8B5CF6) !important;
+        }
+        .hover\:bg-accent-dark:hover {
+            background: linear-gradient(135deg, #2563EB, #7C3AED) !important;
+        }
+        /* border 소프트화 */
+        .border-border {
+            border-color: rgba(0,0,0,.06) !important;
+        }
+        /* 폰트 강화 */
+        h2, h3, .font-semibold { font-weight: 800 !important; }
         .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
         .htmx-request .htmx-indicator { opacity: 1; }
         .htmx-request.htmx-indicator { opacity: 1; }
