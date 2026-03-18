@@ -111,8 +111,16 @@
                         <div class="mt-3 pt-2 border-t border-border" style="height:36px; position:relative;">
                             <canvas class="sparkline" data-values="{{ ps.get('sparkline', [0,0,0,0,0,0,0]) | join(',') }}"></canvas>
                         </div>
+                        {% if ps.get('ms_total', 0) > 0 %}
+                        <div class="flex items-center gap-2 mt-2">
+                            <div class="flex-1 h-1.5 bg-black/5 rounded-full overflow-hidden">
+                                <div class="h-full rounded-full" style="width: {{ ps.get('ms_pct', 0) }}%; background: linear-gradient(135deg, #3B82F6, #8B5CF6);"></div>
+                            </div>
+                            <span class="text-[10px] text-muted shrink-0">{{ ps.get('ms_pct', 0) }}%</span>
+                        </div>
+                        {% endif %}
                         {% if ps.get('last_activity') %}
-                        <p class="text-[10px] text-muted mt-2">{{ ps.get('last_activity') | kst }} 활동</p>
+                        <p class="text-[10px] text-muted mt-1.5">{{ ps.get('last_activity') | kst }} 활동</p>
                         {% endif %}
                     </div>
                 </div>

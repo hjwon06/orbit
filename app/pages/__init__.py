@@ -159,6 +159,15 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     )
     milestones_by_proj = dict(milestones_by_proj_result.all())
 
+    # 마일스톤 done 수
+    milestones_done_result = await db.execute(
+        select(Milestone.project_id, sqlfunc.count()).where(
+            Milestone.project_id.in_(project_ids),
+            Milestone.status == "done",
+        ).group_by(Milestone.project_id)
+    )
+    milestones_done_by_proj = dict(milestones_done_result.all())
+
     # 세션 수 (최근 7일)
     week_ago = today - timedelta(days=7)
     sessions_by_proj_result = await db.execute(
@@ -244,6 +253,9 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             "commits": commits_by_proj.get(pid, 0),
             "sparkline": sparklines.get(pid, [0]*7),
             "last_activity": max(filter(None, [last_session_map.get(pid), last_commit_map.get(pid)]), default=None),
+            "ms_done": milestones_done_by_proj.get(pid, 0),
+            "ms_total": milestones_by_proj.get(pid, 0),
+            "ms_pct": round(milestones_done_by_proj.get(pid, 0) / milestones_by_proj.get(pid, 1) * 100),
         }
         for pid in project_ids
     }
