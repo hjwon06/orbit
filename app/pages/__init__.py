@@ -53,7 +53,7 @@ DAESIN_AGENTS = [
 async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     from datetime import date, timedelta
     from sqlalchemy import select, func as sqlfunc
-    from app.models import Agent, Session as SessionModel, CommitStat, InfraCost, Todo, Milestone
+    from app.models import Agent, AgentRun, Session as SessionModel, CommitStat, InfraCost, Todo, Milestone
 
     projects = await get_projects(db, status="active")
     project_ids = [p.id for p in projects]
@@ -248,6 +248,112 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         for pid in project_ids
     }
 
+    # --- 최근 활동 피드 ---
+    proj_map = {p.id: (p.name, p.color) for p in projects}
+
+    recent_activities = []
+
+    # 세션: 최근 5건
+    recent_sessions_result = await db.execute(
+        select(SessionModel).order_by(SessionModel.started_at.desc()).limit(5)
+    )
+    for s in recent_sessions_result.scalars().all():
+        pname, pcolor = proj_map.get(s.project_id, ("Unknown", "#6b7280"))
+        if s.started_at:
+            recent_activities.append({
+                "timestamp": s.started_at,
+                "type": "session",
+                "action": "started",
+                "project_color": pcolor,
+                "project_name": pname,
+                "description": f"세션 \"{s.title}\" 시작",
+            })
+        if s.finished_at:
+            recent_activities.append({
+                "timestamp": s.finished_at,
+                "type": "session",
+                "action": "finished",
+                "project_color": pcolor,
+                "project_name": pname,
+                "description": f"세션 \"{s.title}\" 완료 ({s.duration_min or 0}분)",
+            })
+
+    # 에이전트 실행: 최근 5건
+    recent_runs_result = await db.execute(
+        select(AgentRun).join(Agent, AgentRun.agent_id == Agent.id)
+        .order_by(AgentRun.started_at.desc()).limit(5)
+    )
+    for r in recent_runs_result.scalars().all():
+        agent = await db.get(Agent, r.agent_id)
+        if agent:
+            pname, pcolor = proj_map.get(agent.project_id, ("Unknown", "#6b7280"))
+        else:
+            pname, pcolor = "Unknown", "#6b7280"
+        if r.started_at:
+            recent_activities.append({
+                "timestamp": r.started_at,
+                "type": "agent_run",
+                "action": "started",
+                "project_color": pcolor,
+                "project_name": pname,
+                "description": f"{agent.agent_code if agent else '?'} \"{r.task_name}\" 실행",
+            })
+        if r.finished_at:
+            recent_activities.append({
+                "timestamp": r.finished_at,
+                "type": "agent_run",
+                "action": "completed",
+                "project_color": pcolor,
+                "project_name": pname,
+                "description": f"{agent.agent_code if agent else '?'} \"{r.task_name}\" 완료",
+            })
+
+    # TODO: 최근 5건
+    recent_todos_result = await db.execute(
+        select(Todo).order_by(Todo.created_at.desc()).limit(5)
+    )
+    for t in recent_todos_result.scalars().all():
+        pname, pcolor = proj_map.get(t.project_id, ("Unknown", "#6b7280"))
+        if t.created_at:
+            recent_activities.append({
+                "timestamp": t.created_at,
+                "type": "todo",
+                "action": "created",
+                "project_color": pcolor,
+                "project_name": pname,
+                "description": f"할일 \"{t.title}\" 생성",
+            })
+        if t.completed_at:
+            recent_activities.append({
+                "timestamp": t.completed_at,
+                "type": "todo",
+                "action": "completed",
+                "project_color": pcolor,
+                "project_name": pname,
+                "description": f"할일 \"{t.title}\" 완료",
+            })
+
+    # 커밋 통계: 최근 5건
+    recent_commits_result = await db.execute(
+        select(CommitStat).order_by(CommitStat.created_at.desc()).limit(5)
+    )
+    for c in recent_commits_result.scalars().all():
+        pname, pcolor = proj_map.get(c.project_id, ("Unknown", "#6b7280"))
+        if c.created_at:
+            recent_activities.append({
+                "timestamp": c.created_at,
+                "type": "commit",
+                "action": "synced",
+                "project_color": pcolor,
+                "project_name": pname,
+                "description": f"커밋 {c.commit_count}건 동기화 (+{c.additions}/-{c.deletions})",
+            })
+
+    # 시간순 정렬 (최신 먼저), None 방어
+    recent_activities = [a for a in recent_activities if a["timestamp"] is not None]
+    recent_activities.sort(key=lambda a: a["timestamp"], reverse=True)
+    recent_activities = recent_activities[:10]
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "projects": projects,
@@ -264,6 +370,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         "trend_labels_json": json.dumps(trend_labels),
         "trend_sessions_json": json.dumps(trend_sessions),
         "trend_commits_json": json.dumps(trend_commits),
+        "recent_activities": recent_activities,
     })
 
 

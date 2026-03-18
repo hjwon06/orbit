@@ -126,6 +126,36 @@
             </div>
         {% endif %}
     </div>
+
+    <!-- Recent activity feed -->
+    {% if recent_activities %}
+    <div class="mt-8">
+        <h3 class="text-sm font-medium mb-4">최근 활동</h3>
+        <div class="bg-card border border-border rounded-lg divide-y divide-border">
+            {% for act in recent_activities %}
+            <div class="flex items-start gap-3 px-4 py-3">
+                <div class="w-2 h-2 rounded-full mt-1.5 shrink-0" style="background-color: {{ act.project_color }}"></div>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs text-gray-700 truncate">{{ act.description }}</p>
+                    <p class="text-[10px] text-muted mt-0.5">{{ act.project_name }} · {{ act.timestamp | kst }}</p>
+                </div>
+                <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0
+                    {% if act.type == 'session' %}bg-accent-light text-accent
+                    {% elif act.type == 'agent_run' %}bg-success-light text-success
+                    {% elif act.type == 'todo' %}bg-warning-light text-warning
+                    {% elif act.type == 'commit' %}bg-surface text-muted border border-border
+                    {% endif %}">
+                    {% if act.type == 'session' %}세션
+                    {% elif act.type == 'agent_run' %}에이전트
+                    {% elif act.type == 'todo' %}할일
+                    {% elif act.type == 'commit' %}커밋
+                    {% endif %}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}
 
