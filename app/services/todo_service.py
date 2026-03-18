@@ -150,7 +150,18 @@ async def ai_recommend_todos(db: AsyncSession, project_id: int) -> list[Todo]:
 
 
 async def reprioritize_todos(db: AsyncSession, project_id: int) -> dict:
-    """GPT-4o로 열린 할일의 우선순위를 재정렬."""
+    """GPT-4o로 열린 할일의 우선순위를 재정렬 (단일 함수 버전)."""
+    ctx = await _collect_reprioritize_context(db, project_id)
+    if "error" in ctx:
+        return ctx
+    gpt = await _call_gpt_reprioritize(ctx)
+    if "error" in gpt:
+        return gpt
+    return await _apply_reprioritize(db, gpt["items"])
+
+
+async def _collect_reprioritize_context(db: AsyncSession, project_id: int) -> dict:
+    """1단계: DB에서 데이터 수집."""
     settings = get_settings()
     if not settings.openai_api_key or not HAS_HTTPX:
         return {"error": "OpenAI 키가 설정되지 않았습니다."}
@@ -167,22 +178,28 @@ async def reprioritize_todos(db: AsyncSession, project_id: int) -> dict:
     )
     milestones = milestones_result.scalars().all()
 
-    todo_list = "\n".join(
-        f'- id={t.id} | "{t.title}" | 현재={t.priority} | source={t.source}'
-        for t in open_todos
-    )
-    ms_list = "\n".join(f'- {m.title} ({m.status})' for m in milestones)
+    return {
+        "todo_list": "\n".join(
+            f'- id={t.id} | "{t.title}" | 현재={t.priority} | source={t.source}'
+            for t in open_todos
+        ),
+        "ms_list": "\n".join(f'- {m.title} ({m.status})' for m in milestones),
+    }
 
+
+async def _call_gpt_reprioritize(context: dict) -> dict:
+    """2단계: GPT 호출 (DB 세션 불필요)."""
+    settings = get_settings()
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 "https://api.openai.com/v1/chat/completions",
                 headers={"Authorization": f"Bearer {settings.openai_api_key}"},
                 json={
-                    "model": "gpt-4o",
+                    "model": "gpt-4o-mini",
                     "messages": [
                         {"role": "system", "content": "당신은 1인 개발자의 프로젝트 관제 AI입니다.\n이 개발자는 혼자 로컬에서 작업합니다.\n\n열린 할일의 우선순위를 재평가하세요.\n각 할일에 대해 high/medium/low를 판단하고 이유를 한 줄로 설명하세요.\n\nJSON 배열로 반환: [{\"id\": 숫자, \"priority\": \"high|medium|low\", \"reasoning\": \"이유\"}]\nJSON만 반환하세요."},
-                        {"role": "user", "content": f"마일스톤:\n{ms_list}\n\n열린 할일:\n{todo_list}"},
+                        {"role": "user", "content": f"마일스톤:\n{context['ms_list']}\n\n열린 할일:\n{context['todo_list']}"},
                     ],
                     "temperature": 0.5,
                     "max_tokens": 1000,
@@ -192,27 +209,31 @@ async def reprioritize_todos(db: AsyncSession, project_id: int) -> dict:
             content = resp.json()["choices"][0]["message"]["content"].strip()
             if content.startswith("```"):
                 content = content.split("\n", 1)[1].rsplit("```", 1)[0]
-
             import json
-            items = json.loads(content)
-            updated = 0
-            for item in items:
-                todo_id = item.get("id")
-                new_priority = item.get("priority", "medium")
-                reasoning = item.get("reasoning", "")
-                if todo_id and new_priority in ("high", "medium", "low"):
-                    from sqlalchemy import update
-                    await db.execute(
-                        update(Todo).where(Todo.id == todo_id).values(
-                            priority=new_priority, ai_reasoning=reasoning
-                        )
-                    )
-                    updated += 1
-            await db.commit()
-            return {"ok": True, "updated": updated, "details": items}
-
+            return {"items": json.loads(content)}
     except Exception as e:
-        return {"error": f"우선순위 재정렬 실패: {str(e)}"}
+        return {"error": f"GPT 호출 실패: {str(e)}"}
+
+
+async def _apply_reprioritize(db: AsyncSession, items: list) -> dict:
+    """3단계: DB 업데이트."""
+    try:
+        updated = 0
+        for item in items:
+            todo_id = item.get("id")
+            new_priority = item.get("priority", "medium")
+            reasoning = item.get("reasoning", "")
+            if todo_id and new_priority in ("high", "medium", "low"):
+                await db.execute(
+                    update(Todo).where(Todo.id == todo_id).values(
+                        priority=new_priority, ai_reasoning=reasoning
+                    )
+                )
+                updated += 1
+        await db.commit()
+        return {"ok": True, "updated": updated, "details": items}
+    except Exception as e:
+        return {"error": f"DB 업데이트 실패: {str(e)}"}
 
 
 async def _fallback_recommendations(db: AsyncSession, project_id: int) -> list[Todo]:

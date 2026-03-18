@@ -42,4 +42,14 @@ async def recommend_todos(project_id: int, db: AsyncSession = Depends(get_db)):
 
 @router.post("/project/{project_id}/reprioritize")
 async def reprioritize(project_id: int, db: AsyncSession = Depends(get_db)):
-    return await reprioritize_todos(db, project_id)
+    from app.services.todo_service import _collect_reprioritize_context, _call_gpt_reprioritize, _apply_reprioritize
+    # 1단계: DB에서 데이터 수집
+    context = await _collect_reprioritize_context(db, project_id)
+    if "error" in context:
+        return context
+    # 2단계: GPT 호출 (DB 세션 불필요)
+    gpt_result = await _call_gpt_reprioritize(context)
+    if "error" in gpt_result:
+        return gpt_result
+    # 3단계: DB 업데이트
+    return await _apply_reprioritize(db, gpt_result["items"])
