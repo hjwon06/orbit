@@ -1,0 +1,52 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: orbit-db
+    restart: always
+    environment:
+      POSTGRES_DB: orbit
+      POSTGRES_USER: orbit
+      POSTGRES_PASSWORD: ${ORBIT_DB_PASSWORD:-orbit}
+    volumes:
+      - orbit_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U orbit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - orbit-net
+
+  app:
+    build: .
+    container_name: orbit-app
+    restart: always
+    ports:
+      - "${ORBIT_PORT:-8000}:8000"
+    environment:
+      ORBIT_DATABASE_URL: postgresql+asyncpg://orbit:${ORBIT_DB_PASSWORD:-orbit}@db:5432/orbit
+      ORBIT_DATABASE_URL_SYNC: postgresql://orbit:${ORBIT_DB_PASSWORD:-orbit}@db:5432/orbit
+      ORBIT_DEBUG: "false"
+      ORBIT_ADMIN_USERNAME: ${ORBIT_ADMIN_USERNAME:-admin}
+      ORBIT_ADMIN_PASSWORD: ${ORBIT_ADMIN_PASSWORD}
+      ORBIT_SECRET_KEY: ${ORBIT_SECRET_KEY}
+      ORBIT_GITHUB_TOKEN: ${ORBIT_GITHUB_TOKEN:-}
+      ORBIT_OPENAI_API_KEY: ${ORBIT_OPENAI_API_KEY:-}
+      ORBIT_OBSIDIAN_VAULT_PATH: /obsidian
+      ORBIT_MANAGED_DATABASES: ${ORBIT_MANAGED_DATABASES:-[]}
+      ORBIT_MANAGED_SERVERS: ${ORBIT_MANAGED_SERVERS:-[]}
+    volumes:
+      - orbit_obsidian:/obsidian
+    depends_on:
+      db:
+        condition: service_healthy
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2
+    networks:
+      - orbit-net
+
+volumes:
+  orbit_data:
+  orbit_obsidian:
+
+networks:
+  orbit-net:

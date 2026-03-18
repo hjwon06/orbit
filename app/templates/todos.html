@@ -1,0 +1,260 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-4xl" x-data="todosPage()" x-cloak>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <a href="/projects/{{ project.slug }}" class="text-sm text-muted hover:text-accent transition-colors">&larr; {{ project.name }}</a>
+            <span class="text-gray-300">/</span>
+            <h2 class="text-lg font-semibold tracking-tight">AI 할일</h2>
+        </div>
+        <div class="flex items-center gap-2">
+            <button @click="recommend()" :disabled="recommending"
+                    class="bg-accent-light text-accent-dark text-xs px-3 py-1.5 rounded-lg hover:bg-accent/20 transition-colors disabled:opacity-50 flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5" :class="recommending && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <span x-text="recommending ? 'AI 분석 중...' : 'AI 추천 받기'"></span>
+            </button>
+            <button @click="syncGitHubIssues()" :disabled="syncingIssues"
+                    class="bg-gray-100 text-gray-700 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" :class="syncingIssues && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span x-text="syncingIssues ? '동기화 중...' : 'GitHub 이슈'"></span>
+            </button>
+            <button @click="openEditor(null)"
+                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+                + 직접 추가
+            </button>
+        </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="grid grid-cols-4 gap-3 mb-6">
+        <div class="bg-card border border-border rounded-lg p-3">
+            <p class="text-[11px] text-muted">전체</p>
+            <p class="text-xl font-semibold" x-text="todos.length"></p>
+        </div>
+        <div class="bg-card border border-border rounded-lg p-3">
+            <p class="text-[11px] text-accent">열림</p>
+            <p class="text-xl font-semibold text-accent" x-text="todos.filter(t => t.status === 'open').length"></p>
+        </div>
+        <div class="bg-card border border-border rounded-lg p-3">
+            <p class="text-[11px] text-success">완료</p>
+            <p class="text-xl font-semibold text-success" x-text="todos.filter(t => t.status === 'done').length"></p>
+        </div>
+        <div class="bg-card border border-border rounded-lg p-3">
+            <p class="text-[11px] text-warning">AI 추천</p>
+            <p class="text-xl font-semibold text-warning" x-text="todos.filter(t => t.source === 'ai').length"></p>
+        </div>
+    </div>
+
+    <!-- Todo list -->
+    <div class="space-y-2">
+        <template x-for="t in sortedTodos" :key="t.id">
+            <div class="flex items-start gap-3 bg-card border border-border rounded-lg px-4 py-3 group/row hover:shadow-sm transition-shadow"
+                 :class="t.status === 'done' ? 'opacity-50' : ''">
+                <!-- Checkbox -->
+                <button @click="toggleStatus(t)" class="mt-0.5 shrink-0">
+                    <div class="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
+                         :class="t.status === 'done' ? 'bg-emerald-500 border-emerald-500' : 'border-border hover:border-accent'">
+                        <svg x-show="t.status === 'done'" class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
+                        </svg>
+                    </div>
+                </button>
+                <!-- Content -->
+                <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="text-sm font-medium" :class="t.status === 'done' && 'line-through text-muted'" x-text="t.title"></span>
+                        <!-- Priority badge -->
+                        <span class="text-[10px] px-1.5 py-0.5 rounded-full"
+                              :class="{
+                                  'bg-danger-light text-danger': t.priority === 'high',
+                                  'bg-warning-light text-warning': t.priority === 'medium',
+                                  'bg-surface text-muted': t.priority === 'low',
+                              }" x-text="t.priority"></span>
+                        <!-- Source badge -->
+                        <span x-show="t.source === 'ai'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-accent-light text-accent-dark">AI</span>
+                        <span x-show="t.source === 'github'" class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-600">GitHub</span>
+                    </div>
+                    <p x-show="t.description" class="text-[11px] text-muted mt-1" x-text="t.description"></p>
+                    <p x-show="t.ai_reasoning" class="text-[11px] text-accent/70 mt-1 italic" x-text="'AI: ' + t.ai_reasoning"></p>
+                </div>
+                <!-- Actions -->
+                <div class="flex gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0">
+                    <button @click="openEditor(t)" class="text-muted hover:text-accent p-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button @click="deleteItem(t.id)" class="text-muted hover:text-danger p-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Empty -->
+    <div x-show="todos.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-lg">
+        <p class="text-sm text-muted mb-2">할일이 없습니다</p>
+        <button @click="recommend()" class="text-sm text-accent hover:text-accent-dark font-medium">AI에게 추천받기 &rarr;</button>
+    </div>
+
+    <!-- Editor Modal -->
+    <template x-if="showModal">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showModal = false">
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-[440px]" @click.stop>
+                <h3 class="text-sm font-semibold mb-4" x-text="form.id ? '할일 수정' : '할일 추가'"></h3>
+                <form @submit.prevent="submitForm()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">제목</label>
+                            <input x-model="form.title" type="text" required
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">설명 (선택)</label>
+                            <textarea x-model="form.description" rows="3"
+                                      class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white resize-y"></textarea>
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">우선순위</label>
+                            <select x-model="form.priority"
+                                    class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-5">
+                        <button type="button" @click="showModal = false" class="px-3 py-1.5 text-xs text-muted rounded-lg">취소</button>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark">저장</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.__currentSlug = '{{ project.slug }}';
+    window.__projectId = {{ project.id }};
+    window.__todos = {{ todos_json | safe }};
+</script>
+<script>
+const PRIORITY_ORDER = { high: 0, medium: 1, low: 2 };
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('todosPage', () => ({
+        todos: [],
+        showModal: false,
+        recommending: false,
+        syncingIssues: false,
+        form: { id: null, title: '', description: '', priority: 'medium' },
+
+        init() { this.todos = window.__todos || []; },
+
+        get sortedTodos() {
+            return [...this.todos].sort((a, b) => {
+                if (a.status !== b.status) return a.status === 'open' ? -1 : 1;
+                return (PRIORITY_ORDER[a.priority] || 1) - (PRIORITY_ORDER[b.priority] || 1);
+            });
+        },
+
+        async toggleStatus(t) {
+            const newStatus = t.status === 'done' ? 'open' : 'done';
+            const res = await fetch(`/api/todos/${t.id}`, {
+                method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus }),
+            });
+            if (res.ok) {
+                const updated = await res.json();
+                const idx = this.todos.findIndex(x => x.id === t.id);
+                if (idx >= 0) this.todos[idx] = updated;
+            }
+        },
+
+        openEditor(t) {
+            if (t) {
+                this.form = { id: t.id, title: t.title, description: t.description, priority: t.priority };
+            } else {
+                this.form = { id: null, title: '', description: '', priority: 'medium' };
+            }
+            this.showModal = true;
+        },
+
+        async submitForm() {
+            if (this.form.id) {
+                const res = await fetch(`/api/todos/${this.form.id}`, {
+                    method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: this.form.title, description: this.form.description, priority: this.form.priority }),
+                });
+                if (res.ok) {
+                    const updated = await res.json();
+                    const idx = this.todos.findIndex(x => x.id === this.form.id);
+                    if (idx >= 0) this.todos[idx] = updated;
+                }
+            } else {
+                const res = await fetch('/api/todos', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ...this.form, project_id: window.__projectId }),
+                });
+                if (res.ok) {
+                    const created = await res.json();
+                    this.todos.push(created);
+                }
+            }
+            this.showModal = false;
+        },
+
+        async recommend() {
+            this.recommending = true;
+            try {
+                const res = await fetch(`/api/todos/project/${window.__projectId}/recommend`, { method: 'POST' });
+                if (res.ok) {
+                    const items = await res.json();
+                    for (const item of items) this.todos.push(item);
+                }
+            } finally {
+                this.recommending = false;
+            }
+        },
+
+        async deleteItem(id) {
+            if (!confirm('삭제하시겠습니까?')) return;
+            const res = await fetch(`/api/todos/${id}`, { method: 'DELETE' });
+            if (res.ok) this.todos = this.todos.filter(t => t.id !== id);
+        },
+
+        async syncGitHubIssues() {
+            this.syncingIssues = true;
+            try {
+                const check = await fetch(`/api/github/status/${window.__projectId}`);
+                const status = await check.json();
+                if (!status.ready) {
+                    const msg = !status.token_set
+                        ? 'ORBIT_GITHUB_TOKEN이 .env에 설정되지 않았습니다.'
+                        : !status.repo_parsed
+                        ? '프로젝트의 repo_url이 설정되지 않았거나 형식이 잘못되었습니다.'
+                        : 'GitHub 연동 준비가 안 됐습니다.';
+                    alert(msg);
+                    return;
+                }
+                const res = await fetch(`/api/github/sync-issues/${window.__projectId}`, { method: 'POST' });
+                const result = await res.json();
+                if (result.error) { alert(result.error); return; }
+                // Reload todos
+                const todosRes = await fetch(`/api/todos/project/${window.__projectId}`);
+                if (todosRes.ok) this.todos = await todosRes.json();
+                alert(`GitHub 이슈 동기화: ${result.created}개 추가, ${result.skipped}개 스킵 (${result.repo})`);
+            } catch (e) {
+                alert('동기화 중 오류: ' + e.message);
+            } finally {
+                this.syncingIssues = false;
+            }
+        },
+    }));
+});
+</script>
+{% endblock %}

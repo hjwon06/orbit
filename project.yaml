@@ -1,0 +1,66 @@
+name: ORBIT
+type: saas
+description: 1인 개발자 프로젝트 관제 허브
+target_user: 솔로 개발자 (제이님)
+external_api:
+  - openai (S6 AI 할일 추천)
+  - github (S6 커밋/이슈 연동)
+vector_search: false
+mobile: false
+deploy_auto: true (Coolify + Vultr Seoul)
+
+stack:
+  backend: FastAPI + Jinja2 + HTMX + Alpine.js
+  frontend: Tailwind (순수 HTML)
+  db: PostgreSQL 16 + pgvector
+  infra: Docker Compose → Coolify + Vultr Seoul VPS
+  ai: GPT-4o (S6)
+
+agents:
+  A0:
+    name: Infrastructure
+    tier: opus
+    role: Docker, Coolify, Vultr 배포, DB 마이그레이션, 서버 설정
+  A1:
+    name: Backend API
+    tier: sonnet
+    role: FastAPI 라우터, 서비스 레이어, DB 모델, Alembic 마이그레이션
+  A2:
+    name: Frontend UI
+    tier: sonnet
+    role: Jinja2 템플릿, HTMX 인터랙션, Alpine.js 컴포넌트, Tailwind 스타일링
+  A3:
+    name: AI & Integration
+    tier: opus
+    role: OpenAI API 연동, GitHub API/Webhook, 외부 서비스 통합
+  A4:
+    name: Data & Analytics
+    tier: sonnet
+    role: 커밋 통계 수집, 인프라 비용 계산, 대시보드 데이터 집계
+  QA:
+    name: QA Verification
+    tier: opus
+    role: ruff + mypy + pytest 검수, GPT 감리, 코드 리뷰
+
+phase:
+  - A0
+  - [A1, A2]
+  - [A3, A4]
+  - QA
+
+mcp:
+  active:
+    - Context7
+    - Sequential Thinking
+  planned:
+    - PostgreSQL MCP
+    - GitHub MCP
+
+sprints:
+  S0: done    # 프로젝트 뼈대
+  S1: done    # 에이전트 모니터
+  S2: done    # 타임라인/간트차트
+  S3: done    # 세션 로그 + 옵시디언
+  S4: done    # 작업 로그 + 커밋 통계
+  S5: done    # 인프라 비용 트래커
+  S6: done    # AI 할일 추천 + GitHub 연동

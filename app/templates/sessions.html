@@ -1,0 +1,362 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    .markdown-body { font-size: 14px; line-height: 1.7; }
+    .markdown-body h1,.markdown-body h2,.markdown-body h3 { margin-top: 1em; margin-bottom: 0.5em; font-weight: 600; }
+    .markdown-body ul,.markdown-body ol { padding-left: 1.5em; margin: 0.5em 0; }
+    .markdown-body li { margin: 0.25em 0; }
+    .markdown-body code { background: #f3f2ef; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .markdown-body pre { background: #f3f2ef; padding: 12px; border-radius: 8px; overflow-x: auto; }
+    .markdown-body pre code { background: none; padding: 0; }
+    .markdown-body p { margin: 0.4em 0; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl" x-data="sessionLog()" x-cloak>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <a href="/projects/{{ project.slug }}" class="text-sm text-muted hover:text-accent transition-colors">&larr; {{ project.name }}</a>
+            <span class="text-gray-300">/</span>
+            <h2 class="text-lg font-semibold tracking-tight">세션 로그</h2>
+        </div>
+        <button @click="openStart()"
+                class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+            + 세션 시작
+        </button>
+    </div>
+
+    <!-- Running sessions banner -->
+    <template x-if="runningSessions.length > 0">
+        <div class="bg-accent-light border border-accent/20 rounded-lg px-4 py-3 mb-6">
+            <p class="text-xs text-accent-dark font-medium mb-2">진행 중인 세션</p>
+            <template x-for="s in runningSessions" :key="s.id">
+                <div class="flex items-center justify-between py-1.5">
+                    <div class="flex items-center gap-2">
+                        <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
+                        <span class="text-sm" x-text="s.title"></span>
+                        <span class="text-[11px] text-muted" x-text="s.agent_code || ''"></span>
+                        <span class="text-[11px] text-muted" x-text="elapsedTime(s.started_at)"></span>
+                    </div>
+                    <button @click="openFinish(s)"
+                            class="text-xs bg-accent text-white px-2.5 py-1 rounded-md hover:bg-accent-dark transition-colors">
+                        종료
+                    </button>
+                </div>
+            </template>
+        </div>
+    </template>
+
+    <!-- Session list grouped by date -->
+    <template x-for="group in groupedSessions" :key="group.date">
+        <div class="mb-6">
+            <p class="text-xs text-muted uppercase tracking-wider mb-3" x-text="group.label"></p>
+            <div class="space-y-3">
+                <template x-for="s in group.sessions" :key="s.id">
+                    <div class="bg-card border border-border rounded-lg p-4 hover:shadow-sm transition-shadow group/card">
+                        <div class="flex items-start justify-between">
+                            <div class="flex items-start gap-3 min-w-0 flex-1">
+                                <!-- Status dot -->
+                                <span class="w-2 h-2 rounded-full mt-1.5 shrink-0"
+                                      :class="{
+                                          'bg-accent animate-pulse': s.status === 'running',
+                                          'bg-emerald-500': s.status === 'done',
+                                          'bg-red-500': s.status === 'error'
+                                      }"></span>
+                                <div class="min-w-0 flex-1">
+                                    <div class="flex items-center gap-2 flex-wrap">
+                                        <span class="text-sm font-medium" x-text="s.title"></span>
+                                        <span x-show="s.agent_code"
+                                              class="text-[10px] px-1.5 py-0.5 rounded bg-surface text-muted"
+                                              x-text="s.agent_code"></span>
+                                    </div>
+                                    <!-- Time info -->
+                                    <p class="text-[11px] text-muted mt-1">
+                                        <span x-text="formatTime(s.started_at)"></span>
+                                        <template x-if="s.finished_at">
+                                            <span>
+                                                <span> ~ </span>
+                                                <span x-text="formatTime(s.finished_at)"></span>
+                                                <span x-show="s.duration_min" class="ml-1 text-accent"
+                                                      x-text="'(' + s.duration_min + '분)'"></span>
+                                            </span>
+                                        </template>
+                                    </p>
+                                    <!-- Summary preview -->
+                                    <div x-show="s.summary" class="mt-2 markdown-body text-sm text-gray-600"
+                                         x-html="renderMd(s.summary)"></div>
+                                </div>
+                            </div>
+                            <!-- Actions -->
+                            <div class="flex items-center gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity shrink-0 ml-2">
+                                <button x-show="s.status === 'running'" @click="openFinish(s)"
+                                        class="text-[11px] text-accent hover:text-accent-dark px-2 py-1 rounded">종료</button>
+                                <button @click="openEdit(s)"
+                                        class="text-muted hover:text-accent transition-colors p-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                              d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                    </svg>
+                                </button>
+                                <button @click="deleteItem(s.id)"
+                                        class="text-muted hover:text-danger transition-colors p-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- Empty state -->
+    <div x-show="sessions.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-lg">
+        <p class="text-sm text-muted mb-2">아직 세션 기록이 없습니다</p>
+        <button @click="openStart()" class="text-sm text-accent hover:text-accent-dark font-medium">
+            첫 세션 시작하기 &rarr;
+        </button>
+    </div>
+
+    <!-- Start Session Modal -->
+    <template x-if="showStart">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showStart = false">
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-96" @click.stop>
+                <h3 class="text-sm font-semibold mb-4">세션 시작</h3>
+                <form @submit.prevent="submitStart()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">제목</label>
+                            <input x-model="startForm.title" type="text" required placeholder="무슨 작업을 시작하나요?"
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">에이전트 (선택)</label>
+                            <input x-model="startForm.agent_code" type="text" placeholder="A0, A3 등"
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-5">
+                        <button type="button" @click="showStart = false"
+                                class="px-3 py-1.5 text-xs text-muted hover:text-gray-700 rounded-lg">취소</button>
+                        <button type="submit"
+                                class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark">시작</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- Finish / Edit Session Modal (with markdown editor) -->
+    <template x-if="showEditor">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="closeEditor()">
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-[640px] max-h-[80vh] overflow-y-auto" @click.stop>
+                <h3 class="text-sm font-semibold mb-4" x-text="editorMode === 'finish' ? '세션 종료' : '세션 수정'"></h3>
+                <form @submit.prevent="submitEditor()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">제목</label>
+                            <input x-model="editorForm.title" type="text" required
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                        </div>
+
+                        <!-- Markdown editor -->
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-[11px] text-muted">요약 (Markdown)</label>
+                                <div class="flex bg-surface rounded p-0.5 border border-border">
+                                    <button type="button" @click="previewMode = false"
+                                            :class="!previewMode ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                                            class="px-2 py-0.5 text-[10px] font-medium rounded transition-all">편집</button>
+                                    <button type="button" @click="previewMode = true"
+                                            :class="previewMode ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                                            class="px-2 py-0.5 text-[10px] font-medium rounded transition-all">미리보기</button>
+                                </div>
+                            </div>
+                            <textarea x-show="!previewMode" x-model="editorForm.summary"
+                                      rows="10" placeholder="- 오늘 한 일&#10;- 해결한 문제&#10;- 내일 할 일"
+                                      class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white font-mono resize-y"></textarea>
+                            <div x-show="previewMode"
+                                 class="w-full min-h-[240px] px-3 py-2 border border-border rounded-lg bg-white markdown-body"
+                                 x-html="renderMd(editorForm.summary)"></div>
+                        </div>
+
+                        <div x-show="editorMode === 'finish'">
+                            <label class="text-[11px] text-muted block mb-1">상태</label>
+                            <select x-model="editorForm.status"
+                                    class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                                <option value="done">완료</option>
+                                <option value="error">에러</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-5">
+                        <button type="button" @click="closeEditor()"
+                                class="px-3 py-1.5 text-xs text-muted hover:text-gray-700 rounded-lg">취소</button>
+                        <button type="submit"
+                                class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark"
+                                x-text="editorMode === 'finish' ? '종료 + 저장' : '저장'"></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.__currentSlug = '{{ project.slug }}';
+    window.__projectId = {{ project.id }};
+    window.__sessions = {{ sessions_json | safe }};
+</script>
+<script>
+const WEEKDAYS = ['일','월','화','수','목','금','토'];
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('sessionLog', () => ({
+        sessions: [],
+        showStart: false,
+        showEditor: false,
+        editorMode: 'finish',
+        editorTargetId: null,
+        previewMode: false,
+        startForm: { title: '', agent_code: '' },
+        editorForm: { title: '', summary: '', status: 'done' },
+
+        init() {
+            this.sessions = window.__sessions || [];
+            setInterval(() => this.$forceUpdate?.(), 60000);
+        },
+
+        renderMd(text) {
+            if (!text) return '<p class="text-muted text-sm">내용 없음</p>';
+            try { return marked.parse(text); } catch { return text; }
+        },
+
+        get runningSessions() {
+            return this.sessions.filter(s => s.status === 'running');
+        },
+
+        get groupedSessions() {
+            const groups = {};
+            for (const s of this.sessions) {
+                const d = s.started_at.slice(0, 10);
+                if (!groups[d]) groups[d] = [];
+                groups[d].push(s);
+            }
+            return Object.entries(groups)
+                .sort(([a], [b]) => b.localeCompare(a))
+                .map(([date, sessions]) => {
+                    const dt = new Date(date + 'T00:00:00');
+                    const today = new Date(); today.setHours(0,0,0,0);
+                    const diff = Math.round((today - dt) / 86400000);
+                    let label = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')} (${WEEKDAYS[dt.getDay()]})`;
+                    if (diff === 0) label = '오늘 — ' + label;
+                    else if (diff === 1) label = '어제 — ' + label;
+                    return { date, label, sessions };
+                });
+        },
+
+        formatTime(isoStr) {
+            if (!isoStr) return '';
+            const d = new Date(isoStr);
+            return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        },
+
+        elapsedTime(isoStr) {
+            if (!isoStr) return '';
+            const mins = Math.round((Date.now() - new Date(isoStr)) / 60000);
+            if (mins < 60) return `${mins}분 경과`;
+            return `${Math.floor(mins/60)}시간 ${mins%60}분 경과`;
+        },
+
+        /* --- Start --- */
+        openStart() {
+            this.startForm = { title: '', agent_code: '' };
+            this.showStart = true;
+        },
+
+        async submitStart() {
+            const body = {
+                project_id: window.__projectId,
+                title: this.startForm.title,
+                agent_code: this.startForm.agent_code || null,
+            };
+            const res = await fetch('/api/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (res.ok) {
+                const created = await res.json();
+                this.sessions.unshift(created);
+            }
+            this.showStart = false;
+        },
+
+        /* --- Finish --- */
+        openFinish(s) {
+            this.editorMode = 'finish';
+            this.editorTargetId = s.id;
+            this.editorForm = { title: s.title, summary: s.summary || '', status: 'done' };
+            this.previewMode = false;
+            this.showEditor = true;
+        },
+
+        /* --- Edit --- */
+        openEdit(s) {
+            this.editorMode = 'edit';
+            this.editorTargetId = s.id;
+            this.editorForm = { title: s.title, summary: s.summary || '', status: s.status };
+            this.previewMode = false;
+            this.showEditor = true;
+        },
+
+        closeEditor() {
+            this.showEditor = false;
+            this.editorTargetId = null;
+        },
+
+        async submitEditor() {
+            const id = this.editorTargetId;
+            let res;
+            if (this.editorMode === 'finish') {
+                res = await fetch(`/api/sessions/${id}/finish`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ summary: this.editorForm.summary, status: this.editorForm.status }),
+                });
+            } else {
+                res = await fetch(`/api/sessions/${id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: this.editorForm.title, summary: this.editorForm.summary }),
+                });
+            }
+            if (res.ok) {
+                const updated = await res.json();
+                const idx = this.sessions.findIndex(s => s.id === id);
+                if (idx >= 0) this.sessions[idx] = updated;
+            }
+            this.closeEditor();
+        },
+
+        /* --- Delete --- */
+        async deleteItem(id) {
+            if (!confirm('삭제하시겠습니까?')) return;
+            const res = await fetch(`/api/sessions/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                this.sessions = this.sessions.filter(s => s.id !== id);
+            }
+        },
+    }));
+});
+</script>
+{% endblock %}

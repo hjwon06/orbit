@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-lg">
+    <div class="mb-6">
+        <a href="/" class="text-sm text-muted hover:text-accent transition-colors">← 대시보드</a>
+    </div>
+
+    <h2 class="text-xl font-semibold tracking-tight mb-6">새 프로젝트</h2>
+
+    <form id="project-form" class="space-y-5 bg-card border border-border rounded-lg p-6">
+        <div>
+            <label for="name" class="block text-sm font-medium mb-1.5">프로젝트명</label>
+            <input type="text" id="name" name="name" required
+                   class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+                   placeholder="예: ORBIT">
+        </div>
+
+        <div>
+            <label for="slug" class="block text-sm font-medium mb-1.5">슬러그</label>
+            <input type="text" id="slug" name="slug" required pattern="[a-z0-9\-]+"
+                   class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+                   placeholder="예: orbit (영문 소문자, 숫자, 하이픈만)">
+        </div>
+
+        <div>
+            <label for="description" class="block text-sm font-medium mb-1.5">설명</label>
+            <textarea id="description" name="description" rows="2"
+                      class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors resize-none"
+                      placeholder="프로젝트에 대한 간단한 설명"></textarea>
+        </div>
+
+        <div>
+            <label for="repo_url" class="block text-sm font-medium mb-1.5">GitHub 저장소 URL</label>
+            <input type="url" id="repo_url" name="repo_url"
+                   class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+                   placeholder="https://github.com/...">
+        </div>
+
+        <div>
+            <label for="stack" class="block text-sm font-medium mb-1.5">기술 스택</label>
+            <input type="text" id="stack" name="stack"
+                   class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20 focus:border-accent transition-colors"
+                   placeholder="예: FastAPI + PostgreSQL + HTMX">
+        </div>
+
+        <div>
+            <label for="color" class="block text-sm font-medium mb-1.5">프로젝트 컬러</label>
+            <div class="flex gap-2">
+                {% for c in ['#534AB7', '#0F6E56', '#D85A30', '#185FA5', '#993556', '#854F0B'] %}
+                <label class="cursor-pointer">
+                    <input type="radio" name="color" value="{{ c }}" class="sr-only peer" {% if loop.first %}checked{% endif %}>
+                    <div class="w-8 h-8 rounded-lg border-2 border-transparent peer-checked:border-gray-900 peer-checked:shadow-sm transition-all" style="background-color: {{ c }}"></div>
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="pt-2 flex gap-3">
+            <button type="submit"
+                    class="px-5 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-dark transition-colors shadow-sm">
+                프로젝트 생성
+            </button>
+            <a href="/" class="px-5 py-2 text-sm text-muted hover:text-gray-700 transition-colors">취소</a>
+        </div>
+
+        <div id="form-error" class="hidden text-sm text-danger mt-2"></div>
+    </form>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('name').addEventListener('input', function(e) {
+    const slug = e.target.value
+        .toLowerCase()
+        .replace(/[^a-z0-9가-힣\s-]/g, '')
+        .replace(/\s+/g, '-')
+        .replace(/[가-힣]/g, '');
+    document.getElementById('slug').value = slug;
+});
+
+document.getElementById('project-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const form = e.target;
+    const errorEl = document.getElementById('form-error');
+    errorEl.classList.add('hidden');
+
+    const data = {
+        name: form.name.value,
+        slug: form.slug.value,
+        description: form.description.value,
+        repo_url: form.repo_url.value,
+        stack: form.stack.value,
+        color: form.querySelector('input[name="color"]:checked').value,
+    };
+
+    try {
+        const res = await fetch('/api/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        if (res.ok) {
+            window.location.href = '/';
+        } else {
+            const err = await res.json();
+            errorEl.textContent = err.detail || '오류가 발생했습니다';
+            errorEl.classList.remove('hidden');
+        }
+    } catch (err) {
+        errorEl.textContent = '서버 연결에 실패했습니다';
+        errorEl.classList.remove('hidden');
+    }
+});
+</script>
+{% endblock %}

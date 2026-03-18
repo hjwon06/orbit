@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ page_title }} — ORBIT</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@2.0.4"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.14.8/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Pretendard Variable', 'Pretendard', 'system-ui', 'sans-serif'],
+                    },
+                    colors: {
+                        surface: '#FAFAF7',
+                        card: '#FFFFFF',
+                        border: '#E8E6E1',
+                        muted: '#8C8A84',
+                        accent: '#534AB7',
+                        'accent-light': '#EEEDFE',
+                        'accent-dark': '#3C3489',
+                        success: '#0F6E56',
+                        'success-light': '#E1F5EE',
+                        warning: '#854F0B',
+                        'warning-light': '#FAEEDA',
+                        danger: '#A32D2D',
+                        'danger-light': '#FCEBEB',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root { --font-sans: 'Pretendard Variable', sans-serif; }
+        body { font-family: var(--font-sans); background: #FAFAF7; color: #2C2C2A; }
+        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+        .htmx-request .htmx-indicator { opacity: 1; }
+        .htmx-request.htmx-indicator { opacity: 1; }
+        [x-cloak] { display: none !important; }
+    </style>
+    {% block head %}{% endblock %}
+</head>
+<body class="min-h-screen bg-surface text-gray-900 antialiased" x-data="{ sidebarOpen: false }">
+    <div class="flex min-h-screen">
+
+        <!-- Mobile header -->
+        <header class="fixed top-0 left-0 right-0 z-40 flex items-center justify-between h-14 px-4 bg-card border-b border-border md:hidden">
+            <h1 class="text-base font-semibold text-accent-dark">ORBIT</h1>
+            <button @click="sidebarOpen = !sidebarOpen" class="p-2 rounded-lg hover:bg-surface transition-colors">
+                <svg class="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path x-show="!sidebarOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 6h16M4 12h16M4 18h16"/>
+                    <path x-show="sidebarOpen" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </header>
+
+        <!-- Mobile overlay -->
+        <div x-show="sidebarOpen" x-transition.opacity @click="sidebarOpen = false"
+             class="fixed inset-0 z-40 bg-black/30 md:hidden" x-cloak></div>
+
+        <!-- Sidebar -->
+        <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'"
+               class="fixed inset-y-0 left-0 z-50 w-56 border-r border-border bg-card flex flex-col py-6 px-4 shrink-0 transition-transform duration-200 md:translate-x-0 md:static md:z-auto">
+            <div class="mb-8">
+                <h1 class="text-lg font-semibold tracking-tight text-accent-dark">ORBIT</h1>
+                <p class="text-xs text-muted mt-0.5">관제 허브 v0.1</p>
+            </div>
+
+            <nav class="flex flex-col gap-1 text-sm" @click="sidebarOpen = false">
+                <a href="/" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if page_title == 'ORBIT' %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1"/></svg>
+                    대시보드
+                </a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if 'agents' in (page_title|default('')) or '에이전트' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
+                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/agents'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 3v2m6-2v2M9 19v2m6-2v2M5 9H3m2 6H3m18-6h-2m2 6h-2M7 19h10a2 2 0 002-2V7a2 2 0 00-2-2H7a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    에이전트
+                </a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '타임라인' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
+                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/timeline'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+                    타임라인
+                </a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '세션' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
+                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/sessions'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    세션 로그
+                </a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '작업' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
+                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/logs'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    작업 로그
+                </a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '인프라' in (page_title|default('')) or '비용' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
+                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/costs'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    인프라 비용
+                </a>
+                <a href="#" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if 'AI' in (page_title|default('')) or '할일' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}"
+                   onclick="if(window.__currentSlug){location.href='/projects/'+window.__currentSlug+'/todos'}else{alert('프로젝트를 먼저 선택하세요')}; return false;">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                    AI 할일
+                </a>
+                <a href="/infra" class="flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-surface transition-colors {% if '인프라 관리' in (page_title|default('')) %}bg-accent-light text-accent-dark font-medium{% else %}text-gray-600{% endif %}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 12h14M5 12a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v4a2 2 0 01-2 2M5 12a2 2 0 00-2 2v4a2 2 0 002 2h14a2 2 0 002-2v-4a2 2 0 00-2-2"/></svg>
+                    인프라 관리
+                </a>
+            </nav>
+
+            <div class="mt-auto pt-4 border-t border-border">
+                <div class="flex items-center justify-between">
+                    <p class="text-[11px] text-muted">ORBIT v0.1</p>
+                    <a href="/logout" class="text-[11px] text-muted hover:text-danger transition-colors">로그아웃</a>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main content -->
+        <main class="flex-1 p-4 pt-16 md:p-8 md:pt-8 overflow-auto">
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+
+    {% if project is defined and project %}
+    <script>window.__currentSlug = '{{ project.slug }}';</script>
+    {% endif %}
+    {% block scripts %}{% endblock %}
+</body>
+</html>

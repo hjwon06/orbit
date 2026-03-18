@@ -1,0 +1,87 @@
+{% for agent in agents %}
+<div class="bg-card border border-border rounded-lg p-4 relative overflow-hidden">
+    <!-- Status indicator bar -->
+    <div class="absolute top-0 left-0 right-0 h-1
+        {% if agent.status == 'running' %}bg-accent
+        {% elif agent.status == 'error' %}bg-red-500
+        {% elif agent.status == 'done' %}bg-emerald-500
+        {% else %}bg-gray-200{% endif %}">
+        {% if agent.status == 'running' %}
+        <div class="h-full bg-accent/60 animate-pulse"></div>
+        {% endif %}
+    </div>
+
+    <div class="flex items-start justify-between mt-1">
+        <div class="flex items-center gap-2.5">
+            <!-- Agent code badge -->
+            <span class="inline-flex items-center justify-center w-9 h-9 rounded-lg text-xs font-semibold
+                {% if agent.model_tier == 'opus' %}bg-accent-light text-accent-dark
+                {% else %}bg-surface text-muted{% endif %}">
+                {{ agent.agent_code }}
+            </span>
+            <div>
+                <p class="text-sm font-medium">{{ agent.agent_name }}</p>
+                <p class="text-[11px] text-muted">{{ agent.model_tier }}</p>
+            </div>
+        </div>
+
+        <!-- Status badge -->
+        <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full
+            {% if agent.status == 'running' %}bg-accent-light text-accent-dark
+            {% elif agent.status == 'error' %}bg-danger-light text-danger
+            {% elif agent.status == 'done' %}bg-success-light text-success
+            {% else %}bg-surface text-muted{% endif %}">
+            <span class="w-1.5 h-1.5 rounded-full
+                {% if agent.status == 'running' %}bg-accent animate-pulse
+                {% elif agent.status == 'error' %}bg-danger
+                {% elif agent.status == 'done' %}bg-success
+                {% else %}bg-gray-400{% endif %}"></span>
+            {{ agent.status }}
+        </span>
+    </div>
+
+    <!-- Current task -->
+    {% if agent.current_task %}
+    <div class="mt-3 px-2.5 py-1.5 bg-surface rounded text-xs text-gray-600 truncate">
+        {{ agent.current_task }}
+    </div>
+    {% endif %}
+
+    <!-- Last heartbeat -->
+    {% if agent.last_heartbeat %}
+    <p class="mt-2 text-[10px] text-gray-400">
+        마지막 활동: {{ agent.last_heartbeat.strftime('%H:%M:%S') }}
+    </p>
+    {% endif %}
+
+    <!-- Recent runs (last 3) -->
+    {% if agent.recent_runs %}
+    <div class="mt-3 border-t border-border pt-2">
+        <p class="text-[10px] text-muted mb-1.5 uppercase tracking-wider">최근 실행</p>
+        {% for run in agent.recent_runs[:3] %}
+        <div class="flex items-center gap-2 py-1 text-[11px]">
+            <span class="w-1.5 h-1.5 rounded-full shrink-0
+                {% if run.status == 'success' %}bg-emerald-500
+                {% elif run.status == 'error' %}bg-red-500
+                {% elif run.status == 'running' %}bg-accent animate-pulse
+                {% else %}bg-gray-300{% endif %}"></span>
+            <span class="truncate flex-1 text-gray-600">{{ run.task_name }}</span>
+            {% if run.duration_sec %}
+            <span class="text-gray-400 shrink-0">{{ run.duration_sec }}s</span>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}
+
+{% if not agents %}
+<div class="col-span-full text-center py-12 bg-card border border-dashed border-border rounded-lg">
+    <p class="text-sm text-muted mb-2">등록된 에이전트가 없습니다</p>
+    <button onclick="document.getElementById('seed-agents-form').submit()"
+            class="text-sm text-accent hover:text-accent-dark font-medium">
+        기본 에이전트 세팅하기 →
+    </button>
+</div>
+{% endif %}

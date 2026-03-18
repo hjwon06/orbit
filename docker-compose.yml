@@ -1,0 +1,30 @@
+services:
+  app:
+    build: .
+    container_name: orbit-app
+    ports:
+      - "8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    environment:
+      ORBIT_DATABASE_URL: postgresql+asyncpg://jay:${DB_PASSWORD:-orbit}@host.docker.internal:5432/jay_db?ssl=require
+      ORBIT_DATABASE_URL_SYNC: postgresql://jay:${DB_PASSWORD:-orbit}@host.docker.internal:5432/jay_db?sslmode=require
+      ORBIT_DEBUG: "true"
+      ORBIT_OBSIDIAN_VAULT_PATH: /obsidian
+      ORBIT_MANAGED_DATABASES: '[{"alias":"jay_db","url":"postgresql://jay:${DB_PASSWORD:-orbit}@host.docker.internal:5432/jay_db?sslmode=require","description":"ORBIT 관제 허브"}]'
+      ORBIT_MANAGED_SERVERS: '[{"name":"local-docker","host":"localhost","type":"docker","description":"로컬 Docker 환경"}]'
+      ORBIT_SSH_KEY_PATH: /tmp/giniz-key.pem
+      ORBIT_SSH_HOST: 15.164.25.18
+      ORBIT_SSH_USER: ubuntu
+    volumes:
+      - ./app:/app/app
+      - ./seed.py:/app/seed.py
+      - ./tests:/app/tests
+      - ./pytest.ini:/app/pytest.ini
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - C:/Users/win11/Desktop/ObsidianVault:/obsidian
+      - C:/Users/win11/Desktop/AWSKEY:/ssh-keys:ro
+    command: bash -c "cp /ssh-keys/giniz-key.pem /tmp/giniz-key.pem && chmod 600 /tmp/giniz-key.pem && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"

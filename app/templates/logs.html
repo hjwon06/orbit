@@ -1,0 +1,551 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+    .markdown-body { font-size: 14px; line-height: 1.7; }
+    .markdown-body ul,.markdown-body ol { padding-left: 1.5em; margin: 0.5em 0; }
+    .markdown-body li { margin: 0.25em 0; }
+    .markdown-body code { background: #f3f2ef; padding: 2px 6px; border-radius: 4px; font-size: 13px; }
+    .markdown-body p { margin: 0.4em 0; }
+    .heatmap-cell { width: 12px; height: 12px; border-radius: 2px; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl" x-data="logsPage()" x-cloak>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <a href="/projects/{{ project.slug }}" class="text-sm text-muted hover:text-accent transition-colors">&larr; {{ project.name }}</a>
+            <span class="text-gray-300">/</span>
+            <h2 class="text-lg font-semibold tracking-tight">작업 로그</h2>
+        </div>
+        <div class="flex items-center gap-3">
+            <!-- Tab toggle -->
+            <div class="flex bg-surface rounded-lg border border-border p-0.5">
+                <button @click="tab = 'diary'; loadDiary()"
+                        :class="tab === 'diary' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                        class="px-3 py-1 text-xs font-medium rounded-md transition-all">다이어리</button>
+                <button @click="tab = 'work'"
+                        :class="tab === 'work' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                        class="px-3 py-1 text-xs font-medium rounded-md transition-all">작업</button>
+                <button @click="tab = 'commits'"
+                        :class="tab === 'commits' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                        class="px-3 py-1 text-xs font-medium rounded-md transition-all">커밋</button>
+            </div>
+            <button x-show="tab === 'work'" @click="openWorkEditor(null)"
+                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+                + 기록
+            </button>
+            <button x-show="tab === 'commits'" @click="syncGitHub()" :disabled="syncing"
+                    class="bg-gray-100 text-gray-700 text-xs px-3 py-1.5 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" :class="syncing && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span x-text="syncing ? '동기화 중...' : 'GitHub 동기화'"></span>
+            </button>
+            <button x-show="tab === 'commits'" @click="openStatEditor(null)"
+                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-lg hover:bg-accent-dark transition-colors">
+                + 입력
+            </button>
+        </div>
+    </div>
+
+    <!-- ===== DIARY TAB ===== -->
+    <div x-show="tab === 'diary'">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <!-- 다이어리 목록 -->
+            <div class="md:col-span-1">
+                <div class="bg-card border border-border rounded-lg p-4">
+                    <p class="text-xs font-medium mb-3">옵시디언 다이어리</p>
+                    <div id="diary-list" class="space-y-1">
+                        <p class="text-xs text-muted">로딩 중...</p>
+                    </div>
+                </div>
+            </div>
+            <!-- 다이어리 내용 -->
+            <div class="md:col-span-2">
+                <div class="bg-card border border-border rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <p class="text-xs font-medium" id="diary-title">날짜를 선택하세요</p>
+                    </div>
+                    <div id="diary-content" class="markdown-body text-sm text-muted">
+                        왼쪽에서 날짜를 클릭하면 내용이 표시됩니다
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== WORK TAB ===== -->
+    <div x-show="tab === 'work'">
+        <template x-for="log in workLogs" :key="log.id">
+            <div class="bg-card border border-border rounded-lg p-4 mb-3 group/card hover:shadow-sm transition-shadow">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs text-muted mb-2" x-text="formatDate(log.log_date)"></p>
+                        <div class="markdown-body text-sm text-gray-700" x-html="renderMd(log.content)"></div>
+                    </div>
+                    <div class="flex gap-1 opacity-0 group-hover/card:opacity-100 transition-opacity ml-2 shrink-0">
+                        <button @click="openWorkEditor(log)" class="text-muted hover:text-accent p-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                        </button>
+                        <button @click="deleteWork(log.id)" class="text-muted hover:text-danger p-1">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </template>
+        <div x-show="workLogs.length === 0" class="text-center py-16 bg-card border border-dashed border-border rounded-lg">
+            <p class="text-sm text-muted mb-2">작업 기록이 없습니다</p>
+            <button @click="openWorkEditor(null)" class="text-sm text-accent hover:text-accent-dark font-medium">오늘의 기록 작성하기 &rarr;</button>
+        </div>
+    </div>
+
+    <!-- ===== COMMITS TAB ===== -->
+    <div x-show="tab === 'commits'">
+        <!-- Heatmap -->
+        <div class="bg-card border border-border rounded-lg p-5 mb-4">
+            <p class="text-xs text-muted mb-3 uppercase tracking-wider">최근 13주 커밋 히트맵</p>
+            <div class="flex gap-0.5">
+                <!-- Day labels -->
+                <div class="flex flex-col gap-0.5 mr-1 pt-0">
+                    <div class="heatmap-cell"></div>
+                    <div class="heatmap-cell flex items-center"><span class="text-[9px] text-muted">월</span></div>
+                    <div class="heatmap-cell"></div>
+                    <div class="heatmap-cell flex items-center"><span class="text-[9px] text-muted">수</span></div>
+                    <div class="heatmap-cell"></div>
+                    <div class="heatmap-cell flex items-center"><span class="text-[9px] text-muted">금</span></div>
+                    <div class="heatmap-cell"></div>
+                </div>
+                <!-- Weeks -->
+                <template x-for="week in heatmapWeeks" :key="week.key">
+                    <div class="flex flex-col gap-0.5">
+                        <template x-for="day in week.days" :key="day.date">
+                            <div class="heatmap-cell cursor-default"
+                                 :class="heatColor(day.count)"
+                                 :title="day.date + ': ' + day.count + ' commits'"
+                                 @click="day.count > 0 && openStatEditor(day)"></div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            <!-- Legend -->
+            <div class="flex items-center gap-1 mt-3 justify-end">
+                <span class="text-[9px] text-muted mr-1">적음</span>
+                <div class="heatmap-cell bg-gray-100 border border-border/50"></div>
+                <div class="heatmap-cell bg-emerald-200"></div>
+                <div class="heatmap-cell bg-emerald-400"></div>
+                <div class="heatmap-cell bg-emerald-600"></div>
+                <div class="heatmap-cell bg-emerald-800"></div>
+                <span class="text-[9px] text-muted ml-1">많음</span>
+            </div>
+        </div>
+
+        <!-- Summary stats -->
+        <div class="grid grid-cols-3 gap-3 mb-4">
+            <div class="bg-card border border-border rounded-lg p-3">
+                <p class="text-[11px] text-muted">오늘</p>
+                <p class="text-lg font-semibold" x-text="todayStats.commits + ' commits'"></p>
+                <p class="text-[11px]">
+                    <span class="text-emerald-600" x-text="'+' + todayStats.add"></span>
+                    <span class="text-red-500 ml-1" x-text="'-' + todayStats.del"></span>
+                </p>
+            </div>
+            <div class="bg-card border border-border rounded-lg p-3">
+                <p class="text-[11px] text-muted">이번 주</p>
+                <p class="text-lg font-semibold" x-text="weekStats.commits + ' commits'"></p>
+                <p class="text-[11px]">
+                    <span class="text-emerald-600" x-text="'+' + weekStats.add"></span>
+                    <span class="text-red-500 ml-1" x-text="'-' + weekStats.del"></span>
+                </p>
+            </div>
+            <div class="bg-card border border-border rounded-lg p-3">
+                <p class="text-[11px] text-muted">총합 (13주)</p>
+                <p class="text-lg font-semibold" x-text="totalStats.commits + ' commits'"></p>
+                <p class="text-[11px]">
+                    <span class="text-emerald-600" x-text="'+' + totalStats.add"></span>
+                    <span class="text-red-500 ml-1" x-text="'-' + totalStats.del"></span>
+                </p>
+            </div>
+        </div>
+
+        <!-- Daily list -->
+        <template x-for="s in commitStats" :key="s.id">
+            <div class="flex items-center justify-between bg-card border border-border rounded-lg px-4 py-3 mb-2 group/row hover:shadow-sm transition-shadow">
+                <div class="flex items-center gap-4">
+                    <span class="text-xs text-muted w-20" x-text="s.stat_date"></span>
+                    <span class="text-sm font-medium" x-text="s.commit_count + ' commits'"></span>
+                    <span class="text-xs text-emerald-600" x-text="'+' + s.additions"></span>
+                    <span class="text-xs text-red-500" x-text="'-' + s.deletions"></span>
+                </div>
+                <div class="flex gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                    <button @click="openStatEditorById(s)" class="text-muted hover:text-accent p-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button @click="deleteStat(s.id)" class="text-muted hover:text-danger p-1">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Work Log Editor Modal -->
+    <template x-if="showWorkModal">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showWorkModal = false">
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-[560px]" @click.stop>
+                <h3 class="text-sm font-semibold mb-4" x-text="workForm.id ? '작업 기록 수정' : '작업 기록 추가'"></h3>
+                <form @submit.prevent="submitWork()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">날짜</label>
+                            <input x-model="workForm.log_date" type="date" required
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                        </div>
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <label class="text-[11px] text-muted">내용 (Markdown)</label>
+                                <div class="flex bg-surface rounded p-0.5 border border-border">
+                                    <button type="button" @click="preview = false"
+                                            :class="!preview ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                                            class="px-2 py-0.5 text-[10px] font-medium rounded transition-all">편집</button>
+                                    <button type="button" @click="preview = true"
+                                            :class="preview ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                                            class="px-2 py-0.5 text-[10px] font-medium rounded transition-all">미리보기</button>
+                                </div>
+                            </div>
+                            <textarea x-show="!preview" x-model="workForm.content" rows="8"
+                                      placeholder="- 오늘 작업한 내용&#10;- 진행 상황&#10;- 메모"
+                                      class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white font-mono resize-y"></textarea>
+                            <div x-show="preview"
+                                 class="w-full min-h-[192px] px-3 py-2 border border-border rounded-lg bg-white markdown-body"
+                                 x-html="renderMd(workForm.content)"></div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-5">
+                        <button type="button" @click="showWorkModal = false" class="px-3 py-1.5 text-xs text-muted rounded-lg">취소</button>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark">저장</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+
+    <!-- Commit Stat Editor Modal -->
+    <template x-if="showStatModal">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showStatModal = false">
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-96" @click.stop>
+                <h3 class="text-sm font-semibold mb-4">커밋 통계 입력</h3>
+                <form @submit.prevent="submitStat()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">날짜</label>
+                            <input x-model="statForm.stat_date" type="date" required
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                        </div>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div>
+                                <label class="text-[11px] text-muted block mb-1">커밋 수</label>
+                                <input x-model.number="statForm.commit_count" type="number" min="0" required
+                                       class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                            </div>
+                            <div>
+                                <label class="text-[11px] text-muted block mb-1">추가(+)</label>
+                                <input x-model.number="statForm.additions" type="number" min="0"
+                                       class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                            </div>
+                            <div>
+                                <label class="text-[11px] text-muted block mb-1">삭제(-)</label>
+                                <input x-model.number="statForm.deletions" type="number" min="0"
+                                       class="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:border-accent bg-white">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-5">
+                        <button type="button" @click="showStatModal = false" class="px-3 py-1.5 text-xs text-muted rounded-lg">취소</button>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-lg hover:bg-accent-dark">저장</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.__currentSlug = '{{ project.slug }}';
+
+    window.__loadDiaryEntry = async function(slug, date) {
+        document.getElementById('diary-title').textContent = date;
+        document.getElementById('diary-content').innerHTML = '<p class="text-xs text-muted">로딩 중...</p>';
+        const res = await fetch(`/api/infra/diary/${slug}/${date}`);
+        const data = await res.json();
+        if (data.content) {
+            document.getElementById('diary-content').innerHTML = marked.parse(data.content);
+        } else {
+            document.getElementById('diary-content').innerHTML = '<p class="text-xs text-muted">내용 없음</p>';
+        }
+    };
+    window.__projectId = {{ project.id }};
+    window.__workLogs = {{ work_logs_json | safe }};
+    window.__commitStats = {{ commit_stats_json | safe }};
+</script>
+<script>
+const WEEKDAYS = ['일','월','화','수','목','금','토'];
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('logsPage', () => ({
+        tab: 'diary',
+        diaryEntries: [],
+        diaryContent: '',
+        workLogs: [],
+        commitStats: [],
+        showWorkModal: false,
+        showStatModal: false,
+        syncing: false,
+        preview: false,
+        workForm: { id: null, log_date: '', content: '' },
+        statForm: { id: null, stat_date: '', commit_count: 0, additions: 0, deletions: 0 },
+
+        async loadDiary() {
+            const slug = '{{ project.slug }}';
+            const res = await fetch(`/api/infra/diary/${slug}`);
+            const data = await res.json();
+            this.diaryEntries = data;
+            const listEl = document.getElementById('diary-list');
+            if (data.length === 0) {
+                listEl.innerHTML = '<p class="text-xs text-muted">다이어리 없음</p>';
+                return;
+            }
+            listEl.innerHTML = data.map(e => `
+                <button onclick="window.__loadDiaryEntry('${slug}','${e.date}')"
+                        class="w-full text-left px-3 py-2 text-sm rounded-lg hover:bg-surface transition-colors flex justify-between">
+                    <span>${e.date}</span>
+                    <span class="text-[10px] text-muted">${e.size_kb}KB</span>
+                </button>
+            `).join('');
+        },
+
+        init() {
+            this.loadDiary();
+            this.workLogs = window.__workLogs || [];
+            this.commitStats = window.__commitStats || [];
+        },
+
+        renderMd(t) {
+            if (!t) return '<p class="text-muted text-sm">내용 없음</p>';
+            try { return marked.parse(t); } catch { return t; }
+        },
+
+        fmtD(s) {
+            const [y,m,d] = s.split('-');
+            return new Date(y, m-1, d);
+        },
+
+        formatDate(s) {
+            const d = this.fmtD(s);
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')} (${WEEKDAYS[d.getDay()]})`;
+        },
+
+        todayStr() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+        },
+
+        /* --- Heatmap --- */
+        get heatmapWeeks() {
+            const statsMap = {};
+            for (const s of this.commitStats) statsMap[s.stat_date] = s.commit_count;
+
+            const weeks = [];
+            const today = new Date(); today.setHours(0,0,0,0);
+            const dow = today.getDay();
+            const endOfWeek = new Date(today);
+            endOfWeek.setDate(endOfWeek.getDate() + (6 - dow));
+
+            const start = new Date(endOfWeek);
+            start.setDate(start.getDate() - 13 * 7 + 1);
+
+            const d = new Date(start);
+            let week = null;
+            while (d <= endOfWeek) {
+                const dayOfWeek = d.getDay();
+                if (dayOfWeek === 0 || !week) {
+                    week = { key: d.toISOString().slice(0,10), days: [] };
+                    weeks.push(week);
+                }
+                const ds = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                week.days.push({ date: ds, count: statsMap[ds] || 0 });
+                d.setDate(d.getDate() + 1);
+            }
+            // Pad last week
+            while (weeks.length > 0 && weeks[weeks.length-1].days.length < 7) {
+                weeks[weeks.length-1].days.push({ date: '', count: -1 });
+            }
+            return weeks;
+        },
+
+        heatColor(count) {
+            if (count < 0) return 'bg-transparent';
+            if (count === 0) return 'bg-gray-100 border border-border/50';
+            if (count <= 2) return 'bg-emerald-200';
+            if (count <= 5) return 'bg-emerald-400';
+            if (count <= 8) return 'bg-emerald-600';
+            return 'bg-emerald-800';
+        },
+
+        get todayStats() {
+            const t = this.todayStr();
+            const s = this.commitStats.find(x => x.stat_date === t);
+            return { commits: s?.commit_count || 0, add: s?.additions || 0, del: s?.deletions || 0 };
+        },
+
+        get weekStats() {
+            const today = new Date(); today.setHours(0,0,0,0);
+            const dow = today.getDay();
+            const weekStart = new Date(today); weekStart.setDate(weekStart.getDate() - dow);
+            let c = 0, a = 0, dl = 0;
+            for (const s of this.commitStats) {
+                const d = this.fmtD(s.stat_date);
+                if (d >= weekStart && d <= today) {
+                    c += s.commit_count; a += s.additions; dl += s.deletions;
+                }
+            }
+            return { commits: c, add: a, del: dl };
+        },
+
+        get totalStats() {
+            let c = 0, a = 0, dl = 0;
+            for (const s of this.commitStats) { c += s.commit_count; a += s.additions; dl += s.deletions; }
+            return { commits: c, add: a, del: dl };
+        },
+
+        /* --- Work Log CRUD --- */
+        openWorkEditor(log) {
+            this.preview = false;
+            if (log) {
+                this.workForm = { id: log.id, log_date: log.log_date, content: log.content };
+            } else {
+                this.workForm = { id: null, log_date: this.todayStr(), content: '' };
+            }
+            this.showWorkModal = true;
+        },
+
+        async submitWork() {
+            const res = await fetch('/api/work-logs', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: window.__projectId,
+                    log_date: this.workForm.log_date,
+                    content: this.workForm.content,
+                }),
+            });
+            if (res.ok) {
+                const saved = await res.json();
+                const idx = this.workLogs.findIndex(l => l.id === saved.id);
+                if (idx >= 0) this.workLogs[idx] = saved;
+                else this.workLogs.unshift(saved);
+                this.workLogs.sort((a, b) => b.log_date.localeCompare(a.log_date));
+            }
+            this.showWorkModal = false;
+        },
+
+        async deleteWork(id) {
+            if (!confirm('삭제하시겠습니까?')) return;
+            const res = await fetch(`/api/work-logs/${id}`, { method: 'DELETE' });
+            if (res.ok) this.workLogs = this.workLogs.filter(l => l.id !== id);
+        },
+
+        /* --- Commit Stat CRUD --- */
+        openStatEditor(day) {
+            if (day) {
+                const existing = this.commitStats.find(s => s.stat_date === day.date);
+                this.statForm = {
+                    id: existing?.id || null,
+                    stat_date: day.date,
+                    commit_count: existing?.commit_count || 0,
+                    additions: existing?.additions || 0,
+                    deletions: existing?.deletions || 0,
+                };
+            } else {
+                this.statForm = { id: null, stat_date: this.todayStr(), commit_count: 0, additions: 0, deletions: 0 };
+            }
+            this.showStatModal = true;
+        },
+
+        openStatEditorById(s) {
+            this.statForm = {
+                id: s.id,
+                stat_date: s.stat_date,
+                commit_count: s.commit_count,
+                additions: s.additions,
+                deletions: s.deletions,
+            };
+            this.showStatModal = true;
+        },
+
+        async submitStat() {
+            const res = await fetch('/api/commit-stats', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: window.__projectId,
+                    stat_date: this.statForm.stat_date,
+                    commit_count: this.statForm.commit_count,
+                    additions: this.statForm.additions,
+                    deletions: this.statForm.deletions,
+                }),
+            });
+            if (res.ok) {
+                const saved = await res.json();
+                const idx = this.commitStats.findIndex(s => s.id === saved.id);
+                if (idx >= 0) this.commitStats[idx] = saved;
+                else this.commitStats.unshift(saved);
+                this.commitStats.sort((a, b) => b.stat_date.localeCompare(a.stat_date));
+            }
+            this.showStatModal = false;
+        },
+
+        async deleteStat(id) {
+            if (!confirm('삭제하시겠습니까?')) return;
+            const res = await fetch(`/api/commit-stats/${id}`, { method: 'DELETE' });
+            if (res.ok) this.commitStats = this.commitStats.filter(s => s.id !== id);
+        },
+
+        async syncGitHub() {
+            this.syncing = true;
+            try {
+                const check = await fetch(`/api/github/status/${window.__projectId}`);
+                const status = await check.json();
+                if (!status.ready) {
+                    const msg = !status.token_set
+                        ? 'ORBIT_GITHUB_TOKEN이 .env에 설정되지 않았습니다.'
+                        : !status.repo_parsed
+                        ? '프로젝트의 repo_url이 설정되지 않았거나 형식이 잘못되었습니다.'
+                        : 'GitHub 연동 준비가 안 됐습니다.';
+                    alert(msg);
+                    return;
+                }
+                const res = await fetch(`/api/github/sync-commits/${window.__projectId}`, { method: 'POST' });
+                const result = await res.json();
+                if (result.error) { alert(result.error); return; }
+                // Reload commit stats
+                const statsRes = await fetch(`/api/commit-stats/project/${window.__projectId}`);
+                if (statsRes.ok) {
+                    const data = await statsRes.json();
+                    this.commitStats = data;
+                }
+                alert(`GitHub 동기화 완료: ${result.synced_days}일분 커밋 데이터 (${result.repo})`);
+            } catch (e) {
+                alert('동기화 중 오류: ' + e.message);
+            } finally {
+                this.syncing = false;
+            }
+        },
+    }));
+});
+</script>
+{% endblock %}

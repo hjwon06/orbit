@@ -1,0 +1,467 @@
+{% extends "base.html" %}
+
+{% block head %}
+<style>
+    .sql-editor { font-family: 'Pretendard Variable', monospace; resize: vertical; min-height: 80px; }
+    .result-table { font-size: 12px; overflow-x: auto; }
+    .result-table table { border-collapse: collapse; width: 100%; }
+    .result-table th { background: var(--surface, #FAFAF7); font-weight: 500; text-align: left; padding: 6px 10px; border-bottom: 2px solid #E8E6E1; white-space: nowrap; }
+    .result-table td { padding: 5px 10px; border-bottom: 1px solid #f0eeea; white-space: nowrap; max-width: 300px; overflow: hidden; text-overflow: ellipsis; }
+    .tab-active { border-bottom: 2px solid #534AB7; color: #3C3489; font-weight: 500; }
+    .tab-inactive { border-bottom: 2px solid transparent; color: #8C8A84; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-6xl">
+    <div class="flex items-center gap-3 mb-6">
+        <h2 class="text-lg font-semibold tracking-tight">인프라 관리</h2>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="flex gap-1 mb-6 border-b border-border">
+        <button onclick="switchInfraTab('db')" id="itab-db" class="px-4 py-2 text-sm tab-active">DB 관리</button>
+        <button onclick="switchInfraTab('deploy')" id="itab-deploy" class="px-4 py-2 text-sm tab-inactive">배포</button>
+        <button onclick="switchInfraTab('rds')" id="itab-rds" class="px-4 py-2 text-sm tab-inactive">RDS 모니터링</button>
+        <button onclick="switchInfraTab('servers')" id="itab-servers" class="px-4 py-2 text-sm tab-inactive">서버 상태</button>
+        <button onclick="switchInfraTab('ssh')" id="itab-ssh" class="px-4 py-2 text-sm tab-inactive">SSH</button>
+    </div>
+
+    <!-- DB 관리 탭 -->
+    <div id="panel-db">
+        <div class="flex gap-3 mb-4">
+            <select id="db-select" class="px-3 py-2 text-sm border border-border rounded-lg bg-surface" onchange="loadTables()">
+                <option value="">DB 선택...</option>
+            </select>
+            <button onclick="loadRoles()" class="px-3 py-1.5 text-xs border border-border rounded-lg hover:bg-surface">역할/권한</button>
+        </div>
+        <div id="tables-grid" class="grid grid-cols-2 md:grid-cols-3 gap-2 mb-6"></div>
+        <div class="bg-card border border-border rounded-lg p-4 mb-4">
+            <div class="flex items-center justify-between mb-2">
+                <p class="text-xs font-medium">SQL 쿼리</p>
+                <div class="flex gap-2">
+                    <button onclick="runSql()" class="px-3 py-1 text-xs font-medium text-white bg-accent rounded hover:bg-accent-dark">실행 (Ctrl+Enter)</button>
+                    <button onclick="loadHistory()" class="px-3 py-1 text-xs border border-border rounded hover:bg-surface">이력</button>
+                </div>
+            </div>
+            <textarea id="sql-input" class="sql-editor w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20"
+                      placeholder="SELECT * FROM ob_projects LIMIT 10;"
+                      onkeydown="if(event.ctrlKey && event.key==='Enter'){runSql();event.preventDefault()}"></textarea>
+        </div>
+        <div id="sql-result" class="bg-card border border-border rounded-lg overflow-hidden">
+            <div class="p-3 text-xs text-muted">쿼리를 실행하면 결과가 여기에 표시됩니다</div>
+        </div>
+        <div id="roles-panel" class="hidden mt-4 bg-card border border-border rounded-lg p-4">
+            <p class="text-xs font-medium mb-3">DB 역할 및 권한</p>
+            <div id="roles-list"></div>
+        </div>
+        <div id="history-panel" class="hidden mt-4 bg-card border border-border rounded-lg p-4">
+            <p class="text-xs font-medium mb-3">최근 쿼리 이력</p>
+            <div id="history-list" class="space-y-1"></div>
+        </div>
+    </div>
+
+    <!-- 배포 탭 -->
+    <div id="panel-deploy" class="hidden">
+        <div class="flex gap-3 mb-6">
+            <select id="deploy-project" class="px-3 py-2 text-sm border border-border rounded-lg bg-surface"></select>
+            <select id="deploy-target" class="px-3 py-2 text-sm border border-border rounded-lg bg-surface">
+                <option value="ec2-giniz">EC2 — Giniz</option>
+                <option value="ec2-daesin">EC2 — DAESIN</option>
+                <option value="vultr-daesin">Vultr — DAESIN</option>
+            </select>
+            <input type="text" id="deploy-branch" value="main" class="px-3 py-2 text-sm border border-border rounded-lg bg-surface w-32" placeholder="branch">
+            <button onclick="triggerDeploy()" id="deploy-btn" class="px-4 py-2 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-dark">배포 시작</button>
+        </div>
+        <div id="deploy-log" class="bg-card border border-border rounded-lg p-4 font-mono text-xs whitespace-pre-wrap" style="min-height:120px;color:#8C8A84">배포 로그가 여기에 표시됩니다</div>
+        <div class="mt-6">
+            <p class="text-xs font-medium mb-3">배포 이력</p>
+            <div id="deploy-history" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <!-- RDS 모니터링 탭 -->
+    <div id="panel-rds" class="hidden">
+        <div class="flex gap-3 mb-6">
+            <select id="rds-db" class="px-3 py-2 text-sm border border-border rounded-lg bg-surface" onchange="loadRdsMetrics()">
+                <option value="">DB 선택...</option>
+            </select>
+        </div>
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div class="bg-card border border-border rounded-lg p-4">
+                <p class="text-xs text-muted mb-1">활성 커넥션</p>
+                <p class="text-2xl font-semibold" id="rds-active">-</p>
+            </div>
+            <div class="bg-card border border-border rounded-lg p-4">
+                <p class="text-xs text-muted mb-1">전체 커넥션</p>
+                <p class="text-2xl font-semibold" id="rds-total">-</p>
+            </div>
+            <div class="bg-card border border-border rounded-lg p-4">
+                <p class="text-xs text-muted mb-1">DB 사이즈</p>
+                <p class="text-2xl font-semibold" id="rds-size">-</p>
+            </div>
+        </div>
+        <div class="bg-card border border-border rounded-lg p-4 mb-4">
+            <p class="text-xs font-medium mb-3">테이블 사이즈 Top 10</p>
+            <div id="rds-tables" class="result-table"></div>
+        </div>
+        <div class="bg-card border border-border rounded-lg p-4">
+            <p class="text-xs font-medium mb-3">슬로우 쿼리 (100ms+)</p>
+            <div id="rds-slow" class="space-y-2"></div>
+        </div>
+    </div>
+
+    <!-- 서버 상태 탭 -->
+    <div id="panel-servers" class="hidden">
+        <div id="servers-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+    </div>
+
+    <!-- SSH 탭 -->
+    <div id="panel-ssh" class="hidden">
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+
+            <!-- EC2 패널 -->
+            <div>
+                <div class="bg-card border border-border rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-success"></span>
+                            <span class="text-xs font-medium">EC2</span>
+                            <span class="text-[10px] text-muted">ubuntu@15.164.25.18</span>
+                        </div>
+                        <button onclick="runSsh()" class="px-3 py-1 text-xs font-medium text-white bg-accent rounded hover:bg-accent-dark">실행</button>
+                    </div>
+                    <div class="flex items-center gap-2 mb-2">
+                        <span class="text-[10px] text-muted shrink-0">CWD:</span>
+                        <input type="text" id="ssh-cwd"
+                               class="flex-1 px-2 py-1 text-[11px] border border-border rounded bg-surface font-mono focus:outline-none focus:ring-1 focus:ring-accent/20"
+                               value="/home/ubuntu">
+                        <div class="flex gap-1 shrink-0">
+                            <button onclick="document.getElementById('ssh-cwd').value='/home/ubuntu'" class="px-1.5 py-0.5 text-[10px] border border-border rounded hover:bg-surface">~</button>
+                            <button onclick="document.getElementById('ssh-cwd').value='/home/ubuntu/coolify'" class="px-1.5 py-0.5 text-[10px] border border-border rounded hover:bg-surface">coolify</button>
+                            <button onclick="document.getElementById('ssh-cwd').value='/var/log'" class="px-1.5 py-0.5 text-[10px] border border-border rounded hover:bg-surface">log</button>
+                            <button onclick="document.getElementById('ssh-cwd').value='/'" class="px-1.5 py-0.5 text-[10px] border border-border rounded hover:bg-surface">/</button>
+                        </div>
+                    </div>
+                    <input type="text" id="ssh-input"
+                           class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                           placeholder="ls -la"
+                           onkeydown="if(event.ctrlKey && event.key==='Enter'){runSsh();event.preventDefault()}">
+                </div>
+                <div id="ssh-result" class="bg-card border border-border rounded-lg overflow-hidden mb-3">
+                    <div class="p-3 text-xs text-muted">Shell 명령어를 입력하세요</div>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="sshQuick('df -h')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">디스크</button>
+                    <button onclick="sshQuick('free -h')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">메모리</button>
+                    <button onclick="sshQuick('uptime')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">Uptime</button>
+                    <button onclick="sshQuick('docker ps')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">Docker</button>
+                    <button onclick="sshQuick('ls -la')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">ls -la</button>
+                    <button onclick="sshQuick('docker compose logs --tail 30')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">Docker 로그</button>
+                </div>
+            </div>
+
+            <!-- RDS 패널 -->
+            <div>
+                <div class="bg-card border border-border rounded-lg p-4 mb-3">
+                    <div class="flex items-center justify-between mb-2">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2 h-2 rounded-full bg-accent"></span>
+                            <span class="text-xs font-medium">RDS</span>
+                            <span class="text-[10px] text-muted">giniz_master@postgres</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <select id="rds-db-select" class="px-2 py-1 text-[11px] border border-border rounded bg-surface">
+                                <option value="postgres">postgres (system)</option>
+                                <option value="jay_db">jay_db</option>
+                                <option value="daesin_prod_db">daesin_prod_db</option>
+                            </select>
+                            <button onclick="runRds()" class="px-3 py-1 text-xs font-medium text-white bg-accent rounded hover:bg-accent-dark">실행</button>
+                        </div>
+                    </div>
+                    <input type="text" id="rds-input"
+                           class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-surface font-mono focus:outline-none focus:ring-2 focus:ring-accent/20"
+                           placeholder="SELECT current_database(), current_user;"
+                           onkeydown="if(event.ctrlKey && event.key==='Enter'){runRds();event.preventDefault()}">
+                </div>
+                <div id="rds-result" class="bg-card border border-border rounded-lg overflow-hidden mb-3">
+                    <div class="p-3 text-xs text-muted">SQL을 입력하세요 (psql 경유)</div>
+                </div>
+                <div class="flex flex-wrap gap-1.5">
+                    <button onclick="rdsQuick('SELECT datname, pg_size_pretty(pg_database_size(datname)) AS size FROM pg_database WHERE datistemplate = false ORDER BY datname;')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">DB 목록</button>
+                    <button onclick="rdsQuick('SELECT rolname, rolsuper, rolcreatedb, rolcanlogin FROM pg_roles WHERE rolname NOT LIKE $$pg_%$$ ORDER BY rolname;')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">유저 목록</button>
+                    <button onclick="rdsQuick('SELECT tablename FROM pg_tables WHERE schemaname = $$public$$ ORDER BY tablename;')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">테이블 목록</button>
+                    <button onclick="rdsQuick('SELECT pg_size_pretty(pg_database_size(current_database()));')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">DB 용량</button>
+                    <button onclick="rdsQuick('SELECT count(*) FROM pg_stat_activity;')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">커넥션 수</button>
+                    <button onclick="rdsQuick('SELECT version();')" class="px-2 py-1 text-[11px] border border-border rounded hover:bg-surface">PG 버전</button>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const infraTabs = ['db', 'deploy', 'rds', 'servers', 'ssh'];
+function switchInfraTab(tab) {
+    infraTabs.forEach(t => {
+        document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tab);
+        const btn = document.getElementById(`itab-${t}`);
+        btn.className = `px-4 py-2 text-sm ${t === tab ? 'tab-active' : 'tab-inactive'}`;
+    });
+    if (tab === 'deploy') loadDeployHistory();
+    if (tab === 'servers') loadServers();
+}
+
+async function loadDatabases() {
+    const res = await fetch('/api/infra/databases');
+    const data = await res.json();
+    const sel = document.getElementById('db-select');
+    const rdsSel = document.getElementById('rds-db');
+    data.forEach(db => {
+        sel.innerHTML += `<option value="${db.alias}">${db.alias} (${db.tables.length} tables, ${db.size_mb}MB)</option>`;
+        rdsSel.innerHTML += `<option value="${db.alias}">${db.alias}</option>`;
+    });
+}
+
+async function loadTables() {
+    const alias = document.getElementById('db-select').value;
+    if (!alias) return;
+    const res = await fetch(`/api/infra/databases/${alias}/tables`);
+    const data = await res.json();
+    document.getElementById('tables-grid').innerHTML = data.map(t => `
+        <div class="bg-card border border-border rounded-lg p-3 cursor-pointer hover:border-accent/30 transition-all"
+             onclick="document.getElementById('sql-input').value='SELECT * FROM ${t.name} LIMIT 20;';runSql()">
+            <p class="text-sm font-medium truncate">${t.name}</p>
+            <div class="flex items-center justify-between mt-1">
+                <span class="text-[11px] text-muted">${t.row_count.toLocaleString()} rows</span>
+                <span class="text-[11px] text-muted">${t.size_kb} KB</span>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function runSql() {
+    const alias = document.getElementById('db-select').value;
+    const query = document.getElementById('sql-input').value.trim();
+    if (!alias) { alert('DB를 선택하세요'); return; }
+    if (!query) return;
+    const el = document.getElementById('sql-result');
+    el.innerHTML = '<div class="p-3 text-xs text-muted">실행 중...</div>';
+    const res = await fetch('/api/infra/sql', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ db_alias: alias, query }),
+    });
+    const data = await res.json();
+    if (data.error) { el.innerHTML = `<div class="p-3 text-xs text-danger">${data.error}</div>`; return; }
+    if (data.columns && data.columns.length > 0) {
+        let html = `<div class="p-2 text-[10px] text-muted">${data.row_count}행 · ${data.duration_ms}ms</div>`;
+        html += '<div class="result-table"><table>';
+        html += '<tr>' + data.columns.map(c => `<th>${c}</th>`).join('') + '</tr>';
+        data.rows.forEach(row => {
+            html += '<tr>' + row.map(v => `<td title="${v}">${v === null ? '<span class="text-gray-300">NULL</span>' : String(v).substring(0, 100)}</td>`).join('') + '</tr>';
+        });
+        html += '</table></div>';
+        el.innerHTML = html;
+    } else {
+        el.innerHTML = `<div class="p-3 text-xs text-success">${data.row_count}행 영향받음 · ${data.duration_ms}ms</div>`;
+    }
+}
+
+async function loadRoles() {
+    const alias = document.getElementById('db-select').value;
+    if (!alias) return;
+    document.getElementById('roles-panel').classList.remove('hidden');
+    const res = await fetch(`/api/infra/databases/${alias}/roles`);
+    const data = await res.json();
+    document.getElementById('roles-list').innerHTML = data.map(r => `
+        <div class="flex items-center justify-between py-1.5 border-b border-border last:border-0">
+            <span class="text-sm">${r.name}</span>
+            <div class="flex gap-2 text-[10px]">
+                ${r.superuser ? '<span class="px-1.5 py-0.5 bg-danger-light text-danger rounded">superuser</span>' : ''}
+                ${r.can_login ? '<span class="px-1.5 py-0.5 bg-success-light text-success rounded">login</span>' : ''}
+                ${r.create_db ? '<span class="px-1.5 py-0.5 bg-warning-light text-warning rounded">createdb</span>' : ''}
+            </div>
+        </div>
+    `).join('');
+}
+
+async function loadHistory() {
+    const alias = document.getElementById('db-select').value;
+    document.getElementById('history-panel').classList.remove('hidden');
+    const url = alias ? `/api/infra/sql/history?db_alias=${alias}` : '/api/infra/sql/history';
+    const res = await fetch(url);
+    const data = await res.json();
+    document.getElementById('history-list').innerHTML = data.map(h => `
+        <div class="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-surface rounded px-2 transition-colors"
+             onclick="document.getElementById('sql-input').value=decodeURIComponent('${encodeURIComponent(h.query)}')">
+            <span class="w-1.5 h-1.5 rounded-full ${h.status === 'success' ? 'bg-success' : 'bg-danger'}"></span>
+            <span class="text-xs text-gray-600 truncate flex-1">${h.query.substring(0, 80)}</span>
+            <span class="text-[10px] text-muted">${h.duration_ms}ms</span>
+        </div>
+    `).join('');
+}
+
+async function loadProjects() {
+    const res = await fetch('/api/projects');
+    const data = await res.json();
+    const sel = document.getElementById('deploy-project');
+    data.forEach(p => { sel.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+}
+
+async function triggerDeploy() {
+    const btn = document.getElementById('deploy-btn');
+    btn.textContent = '배포 중...'; btn.disabled = true;
+    const res = await fetch('/api/infra/deploy', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            project_id: parseInt(document.getElementById('deploy-project').value),
+            target: document.getElementById('deploy-target').value,
+            branch: document.getElementById('deploy-branch').value,
+        }),
+    });
+    const data = await res.json();
+    document.getElementById('deploy-log').textContent = `배포 ID: ${data.id}\n상태: ${data.status}\n\n로그 업데이트를 위해 잠시 기다려주세요...`;
+    const poll = setInterval(async () => {
+        const sr = await fetch(`/api/infra/deployments/${data.project_id}`);
+        const deploys = await sr.json();
+        const cur = deploys.find(d => d.id === data.id);
+        if (cur) {
+            document.getElementById('deploy-log').textContent = cur.log || `상태: ${cur.status}`;
+            if (cur.status !== 'pending' && cur.status !== 'running') {
+                clearInterval(poll); btn.textContent = '배포 시작'; btn.disabled = false; loadDeployHistory();
+            }
+        }
+    }, 2000);
+}
+
+async function loadDeployHistory() {
+    const res = await fetch('/api/infra/deployments');
+    const data = await res.json();
+    const el = document.getElementById('deploy-history');
+    if (data.length === 0) { el.innerHTML = '<p class="text-xs text-muted">배포 이력이 없습니다</p>'; return; }
+    const sc = { success: 'bg-success', failed: 'bg-danger', running: 'bg-accent animate-pulse', pending: 'bg-muted' };
+    el.innerHTML = data.map(d => `
+        <div class="bg-card border border-border rounded-lg p-3">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full ${sc[d.status] || 'bg-muted'}"></span>
+                    <span class="text-sm font-medium">${d.target}</span>
+                    <span class="text-[11px] text-muted">${d.branch}</span>
+                </div>
+                <div class="flex items-center gap-2 text-[11px] text-muted">
+                    ${d.duration_sec ? `${d.duration_sec}s` : ''}
+                    <span>${new Date(d.started_at).toLocaleString('ko-KR')}</span>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+async function loadRdsMetrics() {
+    const alias = document.getElementById('rds-db').value;
+    if (!alias) return;
+    const res = await fetch(`/api/infra/rds/${alias}/metrics`);
+    const data = await res.json();
+    document.getElementById('rds-active').textContent = data.active_connections ?? '-';
+    document.getElementById('rds-total').textContent = data.total_connections ?? '-';
+    document.getElementById('rds-size').textContent = data.db_size_mb ? `${data.db_size_mb} MB` : '-';
+    const tables = data.table_sizes || [];
+    if (tables.length > 0) {
+        let h = '<table><tr><th>테이블</th><th>사이즈</th><th>행 수</th></tr>';
+        tables.forEach(t => { h += `<tr><td>${t.name}</td><td>${t.size_kb} KB</td><td>${t.rows?.toLocaleString()}</td></tr>`; });
+        document.getElementById('rds-tables').innerHTML = h + '</table>';
+    }
+    const slow = data.slow_queries || [];
+    const slowEl = document.getElementById('rds-slow');
+    if (slow.length === 0) { slowEl.innerHTML = '<p class="text-xs text-success">슬로우 쿼리가 없습니다</p>'; }
+    else { slowEl.innerHTML = slow.map(s => `<div class="bg-surface rounded p-2"><p class="text-xs font-mono truncate">${s.query}</p><div class="flex gap-3 mt-1 text-[10px] text-muted"><span>평균 ${s.avg_ms}ms</span><span>${s.calls}회</span></div></div>`).join(''); }
+}
+
+async function loadServers() {
+    const res = await fetch('/api/infra/servers');
+    const data = await res.json();
+    const grid = document.getElementById('servers-grid');
+    if (data.length === 0) { grid.innerHTML = '<div class="col-span-2 text-center py-12 bg-card border border-dashed border-border rounded-lg"><p class="text-sm text-muted">등록된 서버가 없습니다</p></div>'; return; }
+    const sc = { healthy: 'border-success', warning: 'border-warning', critical: 'border-danger', unknown: 'border-muted' };
+    const sl = { healthy: '정상', warning: '주의', critical: '위험', unknown: '미확인' };
+    const sb = { healthy: 'bg-success-light text-success', warning: 'bg-warning-light text-warning', critical: 'bg-danger-light text-danger', unknown: 'bg-surface text-muted' };
+    grid.innerHTML = data.map(s => `
+        <div class="bg-card border-l-4 ${sc[s.status]} border border-border rounded-lg p-5">
+            <div class="flex items-center justify-between mb-4">
+                <div><p class="text-sm font-medium">${s.server_name}</p><p class="text-[11px] text-muted">${s.description || s.type}</p></div>
+                <span class="text-[11px] px-2 py-0.5 rounded-full ${sb[s.status]}">${sl[s.status]}</span>
+            </div>
+            <div class="grid grid-cols-3 gap-4">
+                <div><p class="text-[10px] text-muted mb-1">CPU</p><div class="w-full h-2 bg-surface rounded-full overflow-hidden"><div class="h-full rounded-full ${s.cpu_pct > 90 ? 'bg-danger' : s.cpu_pct > 70 ? 'bg-warning' : 'bg-success'}" style="width:${Math.min(s.cpu_pct, 100)}%"></div></div><p class="text-xs font-medium mt-1">${s.cpu_pct}%</p></div>
+                <div><p class="text-[10px] text-muted mb-1">메모리</p><div class="w-full h-2 bg-surface rounded-full overflow-hidden"><div class="h-full rounded-full ${s.memory_pct > 90 ? 'bg-danger' : s.memory_pct > 70 ? 'bg-warning' : 'bg-success'}" style="width:${Math.min(s.memory_pct, 100)}%"></div></div><p class="text-xs font-medium mt-1">${s.memory_pct}%</p></div>
+                <div><p class="text-[10px] text-muted mb-1">디스크</p><div class="w-full h-2 bg-surface rounded-full overflow-hidden"><div class="h-full rounded-full ${s.disk_pct > 90 ? 'bg-danger' : s.disk_pct > 80 ? 'bg-warning' : 'bg-success'}" style="width:${Math.min(s.disk_pct, 100)}%"></div></div><p class="text-xs font-medium mt-1">${s.disk_pct}%</p></div>
+            </div>
+            ${s.collected_at ? `<p class="text-[10px] text-gray-400 mt-3">마지막 수집: ${new Date(s.collected_at).toLocaleString('ko-KR')}</p>` : ''}
+        </div>
+    `).join('');
+}
+
+async function runSsh() {
+    const rawCmd = document.getElementById('ssh-input').value.trim();
+    if (!rawCmd) return;
+    const cwd = document.getElementById('ssh-cwd').value.trim();
+    const command = cwd && cwd !== '/' ? `cd ${cwd} && ${rawCmd}` : rawCmd;
+    const el = document.getElementById('ssh-result');
+    el.innerHTML = '<div class="p-3 text-xs text-muted">실행 중...</div>';
+    const res = await fetch('/api/infra/ssh', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ command }),
+    });
+    const data = await res.json();
+    let html = `<div class="p-2 text-[10px] text-muted flex justify-between"><span>exit: ${data.exit_code}</span><span>${data.duration_ms}ms</span></div>`;
+    if (data.output) {
+        html += `<pre class="px-3 py-2 text-xs font-mono bg-surface overflow-x-auto whitespace-pre-wrap" style="max-height:400px;overflow-y:auto">${escHtml(data.output)}</pre>`;
+    }
+    if (data.error) {
+        html += `<pre class="px-3 py-2 text-xs font-mono text-danger bg-danger-light overflow-x-auto whitespace-pre-wrap">${escHtml(data.error)}</pre>`;
+    }
+    el.innerHTML = html;
+}
+
+function sshQuick(cmd) {
+    document.getElementById('ssh-input').value = cmd;
+    runSsh();
+}
+
+async function runRds() {
+    const sql = document.getElementById('rds-input').value.trim();
+    if (!sql) return;
+    const db = document.getElementById('rds-db-select').value;
+    const el = document.getElementById('rds-result');
+    el.innerHTML = '<div class="p-3 text-xs text-muted">실행 중...</div>';
+    const res = await fetch('/api/infra/rds/sql', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sql, db }),
+    });
+    const data = await res.json();
+    let html = `<div class="p-2 text-[10px] text-muted flex justify-between"><span>exit: ${data.exit_code}</span><span>${data.duration_ms}ms</span></div>`;
+    if (data.output) {
+        html += `<pre class="px-3 py-2 text-xs font-mono bg-surface overflow-x-auto whitespace-pre-wrap" style="max-height:400px;overflow-y:auto">${escHtml(data.output)}</pre>`;
+    }
+    if (data.error && data.exit_code !== 0) {
+        html += `<pre class="px-3 py-2 text-xs font-mono text-danger bg-danger-light overflow-x-auto whitespace-pre-wrap">${escHtml(data.error)}</pre>`;
+    }
+    el.innerHTML = html;
+}
+
+function rdsQuick(sql) {
+    document.getElementById('rds-input').value = sql;
+    runRds();
+}
+
+function escHtml(s) {
+    return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+loadDatabases();
+loadProjects();
+</script>
+{% endblock %}

@@ -1,0 +1,449 @@
+import json
+from collections import defaultdict
+from datetime import date, datetime
+
+from fastapi import APIRouter, Request, Depends
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.ext.asyncio import AsyncSession
+from app.database import get_db
+from app.services import get_projects
+from app.services.agent_service import get_agents_by_project, create_agent
+from app.services.milestone_service import get_milestones_by_project
+from app.services.session_service import get_sessions_by_project
+from app.services.work_log_service import get_work_logs_by_project
+from app.services.commit_stat_service import get_commit_stats_by_project
+from app.services.infra_cost_service import get_costs_by_project
+from app.services.todo_service import get_todos_by_project
+from app.schemas.agent import AgentCreate
+
+
+def _json_serial(obj):
+    if isinstance(obj, (datetime, date)):
+        return obj.isoformat()
+    raise TypeError(f"Type {type(obj)} not serializable")
+
+router = APIRouter(tags=["pages"])
+templates = Jinja2Templates(directory="app/templates")
+
+DAESIN_AGENTS = [
+    ("A0", "Infrastructure", "opus"),
+    ("A1", "Public Data", "sonnet"),
+    ("A2", "Corporate CRM", "sonnet"),
+    ("A3", "AI-RAG", "opus"),
+    ("A4", "Properties/Transactions", "sonnet"),
+]
+
+
+@router.get("/", response_class=HTMLResponse)
+async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
+    from datetime import date, timedelta
+    from sqlalchemy import select, func as sqlfunc
+    from app.models import Agent, Session as SessionModel, CommitStat, InfraCost, Todo, Milestone
+
+    projects = await get_projects(db, status="active")
+    project_ids = [p.id for p in projects]
+
+    # 에이전트 실행 중
+    running_result = await db.execute(
+        select(sqlfunc.count()).select_from(Agent).where(Agent.status == "running")
+    )
+    agents_running = running_result.scalar() or 0
+
+    # 에이전트 총
+    total_agents_result = await db.execute(select(sqlfunc.count()).select_from(Agent))
+    agents_total = total_agents_result.scalar() or 0
+
+    # 오늘 세션
+    today = date.today()
+    today_sessions_result = await db.execute(
+        select(sqlfunc.count()).select_from(SessionModel).where(
+            sqlfunc.date(SessionModel.started_at) == today
+        )
+    )
+    sessions_today = today_sessions_result.scalar() or 0
+
+    # 이번주 커밋
+    week_start = today - timedelta(days=today.weekday())
+    week_commits_result = await db.execute(
+        select(sqlfunc.coalesce(sqlfunc.sum(CommitStat.commit_count), 0)).where(
+            CommitStat.stat_date >= week_start
+        )
+    )
+    commits_week = week_commits_result.scalar() or 0
+
+    # 월간 비용
+    cost_result = await db.execute(
+        select(
+            sqlfunc.coalesce(sqlfunc.sum(InfraCost.cost_usd), 0)
+        ).where(InfraCost.is_active == True, InfraCost.billing_cycle == "monthly")  # noqa: E712
+    )
+    monthly_cost = round(cost_result.scalar() or 0, 2)
+
+    # yearly를 /12로 추가
+    yearly_result = await db.execute(
+        select(
+            sqlfunc.coalesce(sqlfunc.sum(InfraCost.cost_usd), 0)
+        ).where(InfraCost.is_active == True, InfraCost.billing_cycle == "yearly")  # noqa: E712
+    )
+    monthly_cost = round(monthly_cost + (yearly_result.scalar() or 0) / 12, 2)
+
+    # 열린 TODO
+    open_todos_result = await db.execute(
+        select(sqlfunc.count()).select_from(Todo).where(Todo.status == "open")
+    )
+    open_todos = open_todos_result.scalar() or 0
+
+    # --- 28일 트렌드 데이터 ---
+    trend_start = today - timedelta(days=27)
+    # 일별 세션 수
+    daily_sessions_result = await db.execute(
+        select(
+            sqlfunc.date(SessionModel.started_at).label("d"),
+            sqlfunc.count().label("cnt"),
+        ).where(
+            sqlfunc.date(SessionModel.started_at) >= trend_start
+        ).group_by(sqlfunc.date(SessionModel.started_at))
+    )
+    daily_sessions_map = dict(daily_sessions_result.all())
+
+    # 일별 커밋 수
+    daily_commits_result = await db.execute(
+        select(
+            CommitStat.stat_date,
+            sqlfunc.coalesce(sqlfunc.sum(CommitStat.commit_count), 0),
+        ).where(
+            CommitStat.stat_date >= trend_start
+        ).group_by(CommitStat.stat_date)
+    )
+    daily_commits_map = dict(daily_commits_result.all())
+
+    # 28일 배열 생성
+    trend_labels = []
+    trend_sessions = []
+    trend_commits = []
+    for i in range(28):
+        d = trend_start + timedelta(days=i)
+        trend_labels.append(d.strftime("%m/%d"))
+        trend_sessions.append(int(daily_sessions_map.get(d, 0)))
+        trend_commits.append(int(daily_commits_map.get(d, 0)))
+
+    # --- 프로젝트별 미니 통계 (GROUP BY 한 번씩) ---
+    # 에이전트 수
+    agents_by_proj_result = await db.execute(
+        select(Agent.project_id, sqlfunc.count()).where(
+            Agent.project_id.in_(project_ids)
+        ).group_by(Agent.project_id)
+    )
+    agents_by_proj = dict(agents_by_proj_result.all())
+
+    # 마일스톤 수
+    milestones_by_proj_result = await db.execute(
+        select(Milestone.project_id, sqlfunc.count()).where(
+            Milestone.project_id.in_(project_ids)
+        ).group_by(Milestone.project_id)
+    )
+    milestones_by_proj = dict(milestones_by_proj_result.all())
+
+    # 세션 수 (최근 7일)
+    week_ago = today - timedelta(days=7)
+    sessions_by_proj_result = await db.execute(
+        select(SessionModel.project_id, sqlfunc.count()).where(
+            SessionModel.project_id.in_(project_ids),
+            SessionModel.started_at >= week_ago,
+        ).group_by(SessionModel.project_id)
+    )
+    sessions_by_proj = dict(sessions_by_proj_result.all())
+
+    # 커밋 수 (최근 7일)
+    commits_by_proj_result = await db.execute(
+        select(
+            CommitStat.project_id,
+            sqlfunc.coalesce(sqlfunc.sum(CommitStat.commit_count), 0),
+        ).where(
+            CommitStat.project_id.in_(project_ids),
+            CommitStat.stat_date >= week_start,
+        ).group_by(CommitStat.project_id)
+    )
+    commits_by_proj = dict(commits_by_proj_result.all())
+
+    # --- 프로젝트별 7일 스파크라인 ---
+    spark_start = today - timedelta(days=6)
+    spark_sessions_result = await db.execute(
+        select(
+            SessionModel.project_id,
+            sqlfunc.date(SessionModel.started_at).label("d"),
+            sqlfunc.count().label("cnt"),
+        ).where(
+            SessionModel.project_id.in_(project_ids),
+            sqlfunc.date(SessionModel.started_at) >= spark_start,
+        ).group_by(SessionModel.project_id, sqlfunc.date(SessionModel.started_at))
+    )
+    spark_sess_map: dict[int, dict] = defaultdict(dict)
+    for pid, d, cnt in spark_sessions_result.all():
+        spark_sess_map[pid][d] = cnt
+
+    spark_commits_result = await db.execute(
+        select(
+            CommitStat.project_id,
+            CommitStat.stat_date,
+            CommitStat.commit_count,
+        ).where(
+            CommitStat.project_id.in_(project_ids),
+            CommitStat.stat_date >= spark_start,
+        )
+    )
+    spark_comm_map: dict[int, dict] = defaultdict(dict)
+    for pid, d, cnt in spark_commits_result.all():
+        spark_comm_map[pid][d] = cnt
+
+    sparklines = {}
+    for pid in project_ids:
+        vals = []
+        for i in range(7):
+            d = spark_start + timedelta(days=i)
+            s = spark_sess_map.get(pid, {}).get(d, 0)
+            c = spark_comm_map.get(pid, {}).get(d, 0)
+            vals.append(int(s) + int(c))
+        sparklines[pid] = vals
+
+    project_stats = {
+        pid: {
+            "agents": agents_by_proj.get(pid, 0),
+            "milestones": milestones_by_proj.get(pid, 0),
+            "sessions": sessions_by_proj.get(pid, 0),
+            "commits": commits_by_proj.get(pid, 0),
+            "sparkline": sparklines.get(pid, [0]*7),
+        }
+        for pid in project_ids
+    }
+
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "projects": projects,
+        "page_title": "ORBIT",
+        "project_stats": project_stats,
+        "stats": {
+            "agents_running": agents_running,
+            "agents_total": agents_total,
+            "sessions_today": sessions_today,
+            "commits_week": commits_week,
+            "monthly_cost": monthly_cost,
+            "open_todos": open_todos,
+        },
+        "trend_labels_json": json.dumps(trend_labels),
+        "trend_sessions_json": json.dumps(trend_sessions),
+        "trend_commits_json": json.dumps(trend_commits),
+    })
+
+
+@router.get("/projects/new", response_class=HTMLResponse)
+async def new_project_form(request: Request):
+    return templates.TemplateResponse("project_form.html", {
+        "request": request,
+        "page_title": "New project",
+    })
+
+
+@router.get("/projects/{slug}", response_class=HTMLResponse)
+async def project_detail(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    return templates.TemplateResponse("project_detail.html", {
+        "request": request,
+        "project": project,
+        "page_title": project.name,
+    })
+
+
+@router.get("/projects/{slug}/agents", response_class=HTMLResponse)
+async def agents_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    agents = await get_agents_by_project(db, project.id)
+    return templates.TemplateResponse("agents.html", {
+        "request": request,
+        "project": project,
+        "agents": agents,
+        "page_title": f"{project.name} — 에이전트",
+    })
+
+
+@router.get("/projects/{slug}/agents/partial", response_class=HTMLResponse)
+async def agents_partial(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    agents = await get_agents_by_project(db, project.id)
+    return templates.TemplateResponse("partials/agent_cards.html", {
+        "request": request,
+        "agents": agents,
+    })
+
+
+@router.post("/projects/{slug}/agents/seed")
+async def seed_agents(slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    existing = await get_agents_by_project(db, project.id)
+    if not existing:
+        for code, name, tier in DAESIN_AGENTS:
+            await create_agent(db, AgentCreate(
+                project_id=project.id,
+                agent_code=code,
+                agent_name=name,
+                model_tier=tier,
+            ))
+    return RedirectResponse(url=f"/projects/{slug}/agents", status_code=303)
+
+
+@router.get("/projects/{slug}/timeline", response_class=HTMLResponse)
+async def timeline_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    milestones = await get_milestones_by_project(db, project.id)
+    milestones_json = json.dumps([
+        {
+            "id": m.id, "project_id": m.project_id, "title": m.title,
+            "status": m.status, "start_date": m.start_date.isoformat(),
+            "end_date": m.end_date.isoformat(), "sort_order": m.sort_order,
+            "color": m.color, "source": m.source,
+        }
+        for m in milestones
+    ], default=_json_serial)
+    return templates.TemplateResponse("timeline.html", {
+        "request": request,
+        "project": project,
+        "milestones_json": milestones_json,
+        "page_title": f"{project.name} — 타임라인",
+    })
+
+
+@router.get("/projects/{slug}/sessions", response_class=HTMLResponse)
+async def sessions_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    sessions = await get_sessions_by_project(db, project.id)
+    sessions_json = json.dumps([
+        {
+            "id": s.id, "project_id": s.project_id, "title": s.title,
+            "agent_code": s.agent_code, "summary": s.summary or "",
+            "status": s.status, "started_at": s.started_at.isoformat() if s.started_at else None,
+            "finished_at": s.finished_at.isoformat() if s.finished_at else None,
+            "duration_min": s.duration_min,
+        }
+        for s in sessions
+    ], default=_json_serial)
+    return templates.TemplateResponse("sessions.html", {
+        "request": request,
+        "project": project,
+        "sessions_json": sessions_json,
+        "page_title": f"{project.name} — 세션 로그",
+    })
+
+
+@router.get("/projects/{slug}/logs", response_class=HTMLResponse)
+async def logs_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    work_logs = await get_work_logs_by_project(db, project.id)
+    commit_stats = await get_commit_stats_by_project(db, project.id)
+    work_logs_json = json.dumps([
+        {"id": w.id, "project_id": w.project_id, "log_date": w.log_date.isoformat(), "content": w.content or ""}
+        for w in work_logs
+    ], default=_json_serial)
+    commit_stats_json = json.dumps([
+        {
+            "id": s.id, "project_id": s.project_id, "stat_date": s.stat_date.isoformat(),
+            "commit_count": s.commit_count, "additions": s.additions, "deletions": s.deletions,
+            "source": s.source,
+        }
+        for s in commit_stats
+    ], default=_json_serial)
+    return templates.TemplateResponse("logs.html", {
+        "request": request,
+        "project": project,
+        "work_logs_json": work_logs_json,
+        "commit_stats_json": commit_stats_json,
+        "page_title": f"{project.name} — 작업 로그",
+    })
+
+
+@router.get("/projects/{slug}/costs", response_class=HTMLResponse)
+async def costs_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    costs = await get_costs_by_project(db, project.id)
+    costs_json = json.dumps([
+        {
+            "id": c.id, "project_id": c.project_id, "provider": c.provider,
+            "service_name": c.service_name, "cost_usd": c.cost_usd,
+            "billing_cycle": c.billing_cycle, "is_active": c.is_active,
+            "notes": c.notes or "",
+        }
+        for c in costs
+    ], default=_json_serial)
+    return templates.TemplateResponse("costs.html", {
+        "request": request,
+        "project": project,
+        "costs_json": costs_json,
+        "page_title": f"{project.name} — 인프라 비용",
+    })
+
+
+@router.get("/projects/{slug}/todos", response_class=HTMLResponse)
+async def todos_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    todos = await get_todos_by_project(db, project.id)
+    todos_json = json.dumps([
+        {
+            "id": t.id, "project_id": t.project_id, "title": t.title,
+            "description": t.description or "", "priority": t.priority,
+            "status": t.status, "source": t.source,
+            "github_issue_url": t.github_issue_url,
+            "ai_reasoning": t.ai_reasoning or "",
+            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
+        }
+        for t in todos
+    ], default=_json_serial)
+    return templates.TemplateResponse("todos.html", {
+        "request": request,
+        "project": project,
+        "todos_json": todos_json,
+        "page_title": f"{project.name} — AI 할일",
+    })
+
+
+@router.get("/infra", response_class=HTMLResponse)
+async def infra_page(request: Request):
+    return templates.TemplateResponse("infra.html", {
+        "request": request,
+        "page_title": "인프라 관리",
+    })
