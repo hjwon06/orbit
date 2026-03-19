@@ -7,7 +7,7 @@ class AgentCreate(BaseModel):
     project_id: int
     agent_code: str = Field(..., max_length=10)
     agent_name: str = Field(..., max_length=100)
-    model_tier: str = "sonnet"
+    model_tier: str = "opus"
 
 
 class AgentUpdate(BaseModel):
@@ -15,6 +15,7 @@ class AgentUpdate(BaseModel):
     current_task: Optional[str] = None
     last_heartbeat: Optional[datetime] = None
     agent_name: Optional[str] = None
+    model_tier: Optional[str] = None
 
 
 class AgentRunCreate(BaseModel):

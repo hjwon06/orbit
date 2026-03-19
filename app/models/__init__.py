@@ -37,7 +37,7 @@ class Agent(Base):
     project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
     agent_code = Column(String(10), nullable=False)
     agent_name = Column(String(100), nullable=False)
-    model_tier = Column(String(20), default="sonnet")
+    model_tier = Column(String(20), default="opus")
     status = Column(String(20), default="idle")
     current_task = Column(String(200), default="")
     last_heartbeat = Column(DateTime(timezone=True), nullable=True)
