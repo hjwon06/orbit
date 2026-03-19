@@ -7,7 +7,7 @@ from app.schemas.agent import (
 )
 from app.services.agent_service import (
     get_agents_by_project, get_agent, create_agent, update_agent,
-    heartbeat_agent, start_run, finish_run, get_runs_by_agent,
+    delete_agent, heartbeat_agent, start_run, finish_run, get_runs_by_agent,
     get_agent_by_code,
 )
 
@@ -46,6 +46,14 @@ async def edit_agent(agent_id: int, data: AgentUpdate, db: AsyncSession = Depend
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     return agent
+
+
+@router.delete("/{agent_id}")
+async def remove_agent(agent_id: int, db: AsyncSession = Depends(get_db)):
+    deleted = await delete_agent(db, agent_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Agent not found")
+    return {"ok": True}
 
 
 @router.post("/{agent_id}/heartbeat", response_model=AgentResponse)

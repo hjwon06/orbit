@@ -1,4 +1,4 @@
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
@@ -98,6 +98,12 @@ async def get_runs_by_agent(db: AsyncSession, agent_id: int, limit: int = 10):
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def delete_agent(db: AsyncSession, agent_id: int) -> bool:
+    result = await db.execute(delete(Agent).where(Agent.id == agent_id))
+    await db.commit()
+    return result.rowcount > 0
 
 
 async def get_agent_by_code(db: AsyncSession, project_slug: str, agent_code: str) -> Agent | None:

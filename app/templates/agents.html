@@ -1,17 +1,21 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-5xl">
+<div class="max-w-5xl" x-data="agentsPage()" x-cloak>
     <!-- Header -->
     <div class="flex items-center justify-between mb-6">
         <div class="flex items-center gap-3">
-            <a href="/projects/{{ project.slug }}" class="text-sm text-muted hover:text-accent transition-colors">← {{ project.name }}</a>
+            <a href="/projects/{{ project.slug }}" class="text-sm text-muted hover:text-accent transition-colors">&larr; {{ project.name }}</a>
             <span class="text-gray-300">/</span>
             <h2 class="text-lg font-semibold tracking-tight">에이전트 모니터</h2>
         </div>
         <div class="flex items-center gap-3">
             <span class="text-[11px] text-muted">3초마다 자동 갱신</span>
             <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <button @click="openEditor(null)"
+                    class="bg-accent text-white text-xs px-3 py-1.5 rounded-2xl hover:bg-accent-dark transition-colors">
+                + 추가
+            </button>
         </div>
     </div>
 
@@ -19,46 +23,301 @@
     <div class="grid grid-cols-4 gap-3 mb-6">
         <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-muted">전체</p>
-            <p class="text-xl font-semibold">{{ agents | length }}</p>
+            <p class="text-xl font-semibold" x-text="agents.length"></p>
         </div>
         <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-accent">실행 중</p>
-            <p class="text-xl font-semibold text-accent">{{ agents | selectattr("status", "equalto", "running") | list | length }}</p>
+            <p class="text-xl font-semibold text-accent" x-text="runningCount"></p>
         </div>
         <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-success">대기</p>
-            <p class="text-xl font-semibold text-success">{{ agents | selectattr("status", "equalto", "idle") | list | length }}</p>
+            <p class="text-xl font-semibold text-success" x-text="idleCount"></p>
         </div>
         <div class="bg-card border border-border rounded-2xl p-3">
             <p class="text-[11px] text-danger">에러</p>
-            <p class="text-xl font-semibold text-danger">{{ agents | selectattr("status", "equalto", "error") | list | length }}</p>
+            <p class="text-xl font-semibold text-danger" x-text="errorCount"></p>
         </div>
     </div>
 
     <!-- Error banner -->
-    {% set error_agents = agents | selectattr("status", "equalto", "error") | list %}
-    {% if error_agents %}
-    <div class="bg-danger-light border border-red-200 rounded-2xl px-4 py-3 mb-6 flex items-center gap-3">
+    <div x-show="errorAgents.length > 0"
+         class="bg-danger-light border border-red-200 rounded-2xl px-4 py-3 mb-6 flex items-center gap-3">
         <svg class="w-5 h-5 text-danger shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
         <div>
             <p class="text-sm font-medium text-danger">에러 발생</p>
             <p class="text-xs text-red-600 mt-0.5">
-                {% for a in error_agents %}{{ a.agent_code }} {{ a.agent_name }}{% if not loop.last %}, {% endif %}{% endfor %}
+                <template x-for="(a, i) in errorAgents" :key="a.id">
+                    <span>
+                        <span x-text="a.agent_code + ' ' + a.agent_name"></span><span x-show="i < errorAgents.length - 1">, </span>
+                    </span>
+                </template>
             </p>
         </div>
     </div>
-    {% endif %}
 
-    <!-- Agent cards grid - HTMX polling every 3 seconds -->
-    <div id="agent-grid"
-         class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-         hx-get="/projects/{{ project.slug }}/agents/partial"
-         hx-trigger="every 3s"
-         hx-swap="innerHTML">
-        {% include "partials/agent_cards.html" %}
+    <!-- Agent cards grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="agent in agents" :key="agent.id">
+            <div class="bg-card border border-border rounded-2xl p-4 relative overflow-hidden group hover:scale-[0.98] transition-transform cursor-default">
+                <!-- Status indicator bar -->
+                <div class="absolute top-0 left-0 right-0 h-1"
+                     :class="{
+                         'bg-[#3B82F6]': agent.status === 'running',
+                         'bg-[#EF4444]': agent.status === 'error',
+                         'bg-[#10B981]': agent.status === 'done',
+                         'bg-[#D1D5DB]': agent.status !== 'running' && agent.status !== 'error' && agent.status !== 'done'
+                     }">
+                    <div x-show="agent.status === 'running'" class="h-full bg-[#3B82F6]/60 animate-pulse"></div>
+                </div>
+
+                <!-- Hover action buttons -->
+                <div class="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                    <button @click.stop="openEditor(agent)" class="text-muted hover:text-accent p-1 bg-white/80 rounded-lg">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+                    </button>
+                    <button @click.stop="deleteAgent(agent.id)" class="text-muted hover:text-danger p-1 bg-white/80 rounded-lg">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                    </button>
+                </div>
+
+                <div class="flex items-start justify-between mt-1">
+                    <div class="flex items-center gap-2.5">
+                        <!-- Agent code badge -->
+                        <span class="inline-flex items-center justify-center w-9 h-9 rounded-2xl text-xs font-semibold"
+                              :class="agent.model_tier === 'opus' ? 'bg-accent-light text-accent-dark' : 'bg-surface text-muted'"
+                              x-text="agent.agent_code"></span>
+                        <div>
+                            <p class="text-sm font-medium" x-text="agent.agent_name"></p>
+                            <p class="text-[11px] text-muted" x-text="agent.model_tier"></p>
+                        </div>
+                    </div>
+
+                    <!-- Status badge -->
+                    <span class="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full"
+                          :class="{
+                              'bg-accent-light text-accent-dark': agent.status === 'running',
+                              'bg-danger-light text-danger': agent.status === 'error',
+                              'bg-success-light text-success': agent.status === 'done',
+                              'bg-surface text-muted': agent.status !== 'running' && agent.status !== 'error' && agent.status !== 'done'
+                          }">
+                        <span class="w-1.5 h-1.5 rounded-full"
+                              :class="{
+                                  'bg-accent animate-pulse': agent.status === 'running',
+                                  'bg-danger': agent.status === 'error',
+                                  'bg-success': agent.status === 'done',
+                                  'bg-gray-400': agent.status !== 'running' && agent.status !== 'error' && agent.status !== 'done'
+                              }"></span>
+                        <span x-text="agent.status"></span>
+                    </span>
+                </div>
+
+                <!-- Current task -->
+                <div x-show="agent.current_task" class="mt-3 px-2.5 py-1.5 bg-surface rounded text-xs text-gray-600 truncate" x-text="agent.current_task"></div>
+
+                <!-- Last heartbeat -->
+                <p x-show="agent.last_heartbeat" class="mt-2 text-[10px] text-gray-400">
+                    마지막 활동: <span x-text="formatTime(agent.last_heartbeat)"></span>
+                </p>
+
+                <!-- Recent runs (last 3) -->
+                <div x-show="agent.recent_runs && agent.recent_runs.length > 0" class="mt-3 border-t border-border pt-2">
+                    <p class="text-[10px] text-muted mb-1.5 uppercase tracking-wider">최근 실행</p>
+                    <template x-for="run in (agent.recent_runs || []).slice(0, 3)" :key="run.id">
+                        <div class="flex items-center gap-2 py-1 text-[11px]">
+                            <span class="w-1.5 h-1.5 rounded-full shrink-0"
+                                  :class="{
+                                      'bg-emerald-500': run.status === 'success',
+                                      'bg-red-500': run.status === 'error',
+                                      'bg-accent animate-pulse': run.status === 'running',
+                                      'bg-gray-300': run.status !== 'success' && run.status !== 'error' && run.status !== 'running'
+                                  }"></span>
+                            <span class="truncate flex-1 text-gray-600" x-text="run.task_name"></span>
+                            <span x-show="run.duration_sec" class="text-gray-400 shrink-0" x-text="run.duration_sec + 's'"></span>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+    </div>
+
+    <!-- Empty state -->
+    <div x-show="agents.length === 0" class="col-span-full text-center py-12 bg-card border border-dashed border-border rounded-2xl mt-4">
+        <p class="text-sm text-muted mb-2">등록된 에이전트가 없습니다</p>
+        <button @click="seedAgents()" class="text-sm text-accent hover:text-accent-dark font-medium">
+            기본 에이전트 세팅하기 &rarr;
+        </button>
     </div>
 
     <!-- Seed agents form (hidden) -->
     <form id="seed-agents-form" method="post" action="/projects/{{ project.slug }}/agents/seed" class="hidden"></form>
+
+    <!-- Editor Modal -->
+    <template x-if="showModal">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showModal = false">
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-full max-w-[440px] mx-4" @click.stop>
+                <h3 class="text-sm font-semibold mb-4" x-text="form.id ? '에이전트 수정' : '에이전트 추가'"></h3>
+                <form @submit.prevent="submitForm()">
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">에이전트 코드</label>
+                            <input x-model="form.agent_code" type="text" required maxlength="10"
+                                   placeholder="A0, A1, QA..."
+                                   :readonly="!!form.id"
+                                   :class="form.id ? 'bg-gray-100 cursor-not-allowed' : 'bg-white'"
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent">
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">에이전트 이름</label>
+                            <input x-model="form.agent_name" type="text" required maxlength="100"
+                                   placeholder="인프라 에이전트"
+                                   class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
+                        </div>
+                        <div>
+                            <label class="text-[11px] text-muted block mb-1">모델 티어</label>
+                            <select x-model="form.model_tier"
+                                    class="w-full px-3 py-2 text-sm border border-border rounded-2xl focus:outline-none focus:border-accent bg-white">
+                                <option value="opus">opus</option>
+                                <option value="sonnet">sonnet</option>
+                                <option value="haiku">haiku</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="flex justify-end gap-2 mt-5">
+                        <button type="button" @click="showModal = false" class="px-3 py-1.5 text-xs text-muted rounded-2xl">취소</button>
+                        <button type="submit" class="px-3 py-1.5 text-xs bg-accent text-white rounded-2xl hover:bg-accent-dark">저장</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </template>
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    window.__projectId = {{ project.id }};
+    window.__projectSlug = '{{ project.slug }}';
+    window.__agents = {{ agents_json | safe }};
+</script>
+<script>
+document.addEventListener('alpine:init', () => {
+    Alpine.data('agentsPage', () => ({
+        agents: [],
+        showModal: false,
+        form: { id: null, agent_code: '', agent_name: '', model_tier: 'opus' },
+        _timer: null,
+
+        init() {
+            this.agents = window.__agents || [];
+            this.startPolling();
+        },
+
+        startPolling() {
+            this._timer = setInterval(() => {
+                if (this.showModal) return;
+                this.fetchAgents();
+            }, 3000);
+        },
+
+        async fetchAgents() {
+            try {
+                const res = await fetch(`/api/agents/project/${window.__projectId}`);
+                if (res.ok) {
+                    this.agents = await res.json();
+                }
+            } catch (e) {
+                // 네트워크 오류 시 무시 — 다음 폴링에서 재시도
+            }
+        },
+
+        get runningCount() {
+            return this.agents.filter(a => a.status === 'running').length;
+        },
+
+        get idleCount() {
+            return this.agents.filter(a => a.status === 'idle').length;
+        },
+
+        get errorCount() {
+            return this.agents.filter(a => a.status === 'error').length;
+        },
+
+        get errorAgents() {
+            return this.agents.filter(a => a.status === 'error');
+        },
+
+        openEditor(agent) {
+            if (agent) {
+                this.form = {
+                    id: agent.id,
+                    agent_code: agent.agent_code,
+                    agent_name: agent.agent_name,
+                    model_tier: agent.model_tier,
+                };
+            } else {
+                this.form = { id: null, agent_code: '', agent_name: '', model_tier: 'opus' };
+            }
+            this.showModal = true;
+        },
+
+        async submitForm() {
+            if (this.form.id) {
+                // 수정: PATCH
+                const res = await fetch(`/api/agents/${this.form.id}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        agent_name: this.form.agent_name,
+                        model_tier: this.form.model_tier,
+                    }),
+                });
+                if (res.ok) {
+                    const updated = await res.json();
+                    const idx = this.agents.findIndex(a => a.id === this.form.id);
+                    if (idx >= 0) this.agents[idx] = updated;
+                }
+            } else {
+                // 추가: POST
+                const res = await fetch('/api/agents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        project_id: window.__projectId,
+                        agent_code: this.form.agent_code,
+                        agent_name: this.form.agent_name,
+                        model_tier: this.form.model_tier,
+                    }),
+                });
+                if (res.ok) {
+                    const created = await res.json();
+                    this.agents.push(created);
+                }
+            }
+            this.showModal = false;
+        },
+
+        async deleteAgent(id) {
+            if (!confirm('이 에이전트를 삭제하시겠습니까?')) return;
+            const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' });
+            if (res.ok) {
+                this.agents = this.agents.filter(a => a.id !== id);
+            }
+        },
+
+        seedAgents() {
+            document.getElementById('seed-agents-form').submit();
+        },
+
+        formatTime(iso) {
+            if (!iso) return '';
+            const d = new Date(iso);
+            return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
+        },
+
+        destroy() {
+            if (this._timer) clearInterval(this._timer);
+        },
+    }));
+});
+</script>
 {% endblock %}

@@ -1,6 +1,6 @@
 import json
 from collections import defaultdict
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone as tz
 
 from fastapi import APIRouter, Request, Depends
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -27,7 +27,6 @@ router = APIRouter(tags=["pages"])
 templates = Jinja2Templates(directory="app/templates")
 
 # kst 필터 등록 (main.py와 동일)
-from datetime import timedelta, timezone as tz
 _KST = tz(timedelta(hours=9))
 
 def _to_kst(value, fmt="%Y-%m-%d %H:%M"):
@@ -515,10 +514,22 @@ async def agents_page(request: Request, slug: str, db: AsyncSession = Depends(ge
         from fastapi.exceptions import HTTPException
         raise HTTPException(status_code=404)
     agents = await get_agents_by_project(db, project.id)
+    agents_json = json.dumps([
+        {
+            "id": a.id, "project_id": a.project_id,
+            "agent_code": a.agent_code, "agent_name": a.agent_name,
+            "model_tier": a.model_tier, "status": a.status,
+            "current_task": a.current_task or "",
+            "last_heartbeat": a.last_heartbeat.isoformat() if a.last_heartbeat else None,
+        }
+        for a in agents
+    ], default=_json_serial)
     return templates.TemplateResponse("agents.html", {
         "request": request,
         "project": project,
         "agents": agents,
+        "agents_json": agents_json,
+        "project_id": project.id,
         "page_title": f"{project.name} — 에이전트",
     })
 
