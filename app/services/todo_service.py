@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Todo, Project, Milestone, Session as SessionModel
 from app.schemas.todo import TodoCreate, TodoUpdate
@@ -15,7 +15,7 @@ except ImportError:
 async def get_todos_by_project(db: AsyncSession, project_id: int):
     stmt = (
         select(Todo)
-        .where(Todo.project_id == project_id)
+        .where(Todo.project_id == project_id, Todo.deleted_at.is_(None))
         .order_by(
             Todo.status.asc(),
             Todo.priority.desc(),
@@ -27,7 +27,7 @@ async def get_todos_by_project(db: AsyncSession, project_id: int):
 
 
 async def get_todo(db: AsyncSession, todo_id: int):
-    result = await db.execute(select(Todo).where(Todo.id == todo_id))
+    result = await db.execute(select(Todo).where(Todo.id == todo_id, Todo.deleted_at.is_(None)))
     return result.scalar_one_or_none()
 
 
@@ -53,7 +53,9 @@ async def update_todo(db: AsyncSession, todo_id: int, data: TodoUpdate) -> Todo 
 
 
 async def delete_todo(db: AsyncSession, todo_id: int) -> bool:
-    result = await db.execute(delete(Todo).where(Todo.id == todo_id))
+    result = await db.execute(
+        update(Todo).where(Todo.id == todo_id).values(deleted_at=datetime.now(timezone.utc))
+    )
     await db.commit()
     return result.rowcount > 0
 
@@ -70,17 +72,17 @@ async def ai_recommend_todos(db: AsyncSession, project_id: int) -> list[Todo]:
         return []
 
     milestones_result = await db.execute(
-        select(Milestone).where(Milestone.project_id == project_id).order_by(Milestone.sort_order)
+        select(Milestone).where(Milestone.project_id == project_id, Milestone.deleted_at.is_(None)).order_by(Milestone.sort_order)
     )
     milestones = milestones_result.scalars().all()
 
     sessions_result = await db.execute(
-        select(SessionModel).where(SessionModel.project_id == project_id).order_by(SessionModel.started_at.desc()).limit(5)
+        select(SessionModel).where(SessionModel.project_id == project_id, SessionModel.deleted_at.is_(None)).order_by(SessionModel.started_at.desc()).limit(5)
     )
     recent_sessions = sessions_result.scalars().all()
 
     existing_result = await db.execute(
-        select(Todo).where(Todo.project_id == project_id, Todo.status == "open")
+        select(Todo).where(Todo.project_id == project_id, Todo.deleted_at.is_(None), Todo.status == "open")
     )
     existing_todos = existing_result.scalars().all()
 
@@ -167,14 +169,14 @@ async def _collect_reprioritize_context(db: AsyncSession, project_id: int) -> di
         return {"error": "OpenAI 키가 설정되지 않았습니다."}
 
     open_todos_result = await db.execute(
-        select(Todo).where(Todo.project_id == project_id, Todo.status == "open")
+        select(Todo).where(Todo.project_id == project_id, Todo.deleted_at.is_(None), Todo.status == "open")
     )
     open_todos = open_todos_result.scalars().all()
     if not open_todos:
         return {"error": "열린 할일이 없습니다."}
 
     milestones_result = await db.execute(
-        select(Milestone).where(Milestone.project_id == project_id).order_by(Milestone.sort_order)
+        select(Milestone).where(Milestone.project_id == project_id, Milestone.deleted_at.is_(None)).order_by(Milestone.sort_order)
     )
     milestones = milestones_result.scalars().all()
 
@@ -241,6 +243,7 @@ async def _fallback_recommendations(db: AsyncSession, project_id: int) -> list[T
     milestones_result = await db.execute(
         select(Milestone).where(
             Milestone.project_id == project_id,
+            Milestone.deleted_at.is_(None),
             Milestone.status.in_(["planned", "active"]),
         ).order_by(Milestone.sort_order).limit(3)
     )

@@ -59,18 +59,19 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
     # 에이전트 실행 중
     running_result = await db.execute(
-        select(sqlfunc.count()).select_from(Agent).where(Agent.status == "running")
+        select(sqlfunc.count()).select_from(Agent).where(Agent.deleted_at.is_(None), Agent.status == "running")
     )
     agents_running = running_result.scalar() or 0
 
     # 에이전트 총
-    total_agents_result = await db.execute(select(sqlfunc.count()).select_from(Agent))
+    total_agents_result = await db.execute(select(sqlfunc.count()).select_from(Agent).where(Agent.deleted_at.is_(None)))
     agents_total = total_agents_result.scalar() or 0
 
     # 오늘 세션
     today = date.today()
     today_sessions_result = await db.execute(
         select(sqlfunc.count()).select_from(SessionModel).where(
+            SessionModel.deleted_at.is_(None),
             sqlfunc.date(SessionModel.started_at) == today
         )
     )
@@ -103,7 +104,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
     # 열린 TODO
     open_todos_result = await db.execute(
-        select(sqlfunc.count()).select_from(Todo).where(Todo.status == "open")
+        select(sqlfunc.count()).select_from(Todo).where(Todo.deleted_at.is_(None), Todo.status == "open")
     )
     open_todos = open_todos_result.scalar() or 0
 
@@ -115,6 +116,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             sqlfunc.date(SessionModel.started_at).label("d"),
             sqlfunc.count().label("cnt"),
         ).where(
+            SessionModel.deleted_at.is_(None),
             sqlfunc.date(SessionModel.started_at) >= trend_start
         ).group_by(sqlfunc.date(SessionModel.started_at))
     )
@@ -145,7 +147,8 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     # 에이전트 수
     agents_by_proj_result = await db.execute(
         select(Agent.project_id, sqlfunc.count()).where(
-            Agent.project_id.in_(project_ids)
+            Agent.project_id.in_(project_ids),
+            Agent.deleted_at.is_(None),
         ).group_by(Agent.project_id)
     )
     agents_by_proj = dict(agents_by_proj_result.all())
@@ -153,7 +156,8 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     # 마일스톤 수
     milestones_by_proj_result = await db.execute(
         select(Milestone.project_id, sqlfunc.count()).where(
-            Milestone.project_id.in_(project_ids)
+            Milestone.project_id.in_(project_ids),
+            Milestone.deleted_at.is_(None),
         ).group_by(Milestone.project_id)
     )
     milestones_by_proj = dict(milestones_by_proj_result.all())
@@ -162,6 +166,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     milestones_done_result = await db.execute(
         select(Milestone.project_id, sqlfunc.count()).where(
             Milestone.project_id.in_(project_ids),
+            Milestone.deleted_at.is_(None),
             Milestone.status == "done",
         ).group_by(Milestone.project_id)
     )
@@ -172,6 +177,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     sessions_by_proj_result = await db.execute(
         select(SessionModel.project_id, sqlfunc.count()).where(
             SessionModel.project_id.in_(project_ids),
+            SessionModel.deleted_at.is_(None),
             SessionModel.started_at >= week_ago,
         ).group_by(SessionModel.project_id)
     )
@@ -198,6 +204,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             sqlfunc.count().label("cnt"),
         ).where(
             SessionModel.project_id.in_(project_ids),
+            SessionModel.deleted_at.is_(None),
             sqlfunc.date(SessionModel.started_at) >= spark_start,
         ).group_by(SessionModel.project_id, sqlfunc.date(SessionModel.started_at))
     )
@@ -232,7 +239,8 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     # --- 프로젝트별 마지막 활동 시간 ---
     last_session_result = await db.execute(
         select(SessionModel.project_id, sqlfunc.max(SessionModel.started_at)).where(
-            SessionModel.project_id.in_(project_ids)
+            SessionModel.project_id.in_(project_ids),
+            SessionModel.deleted_at.is_(None),
         ).group_by(SessionModel.project_id)
     )
     last_session_map = dict(last_session_result.all())
@@ -266,7 +274,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
     # 세션: 최근 5건
     recent_sessions_result = await db.execute(
-        select(SessionModel).order_by(SessionModel.started_at.desc()).limit(5)
+        select(SessionModel).where(SessionModel.deleted_at.is_(None)).order_by(SessionModel.started_at.desc()).limit(5)
     )
     for s in recent_sessions_result.scalars().all():
         pname, pcolor = proj_map.get(s.project_id, ("Unknown", "#6b7280"))
@@ -321,7 +329,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
 
     # TODO: 최근 5건
     recent_todos_result = await db.execute(
-        select(Todo).order_by(Todo.created_at.desc()).limit(5)
+        select(Todo).where(Todo.deleted_at.is_(None)).order_by(Todo.created_at.desc()).limit(5)
     )
     for t in recent_todos_result.scalars().all():
         pname, pcolor = proj_map.get(t.project_id, ("Unknown", "#6b7280"))
@@ -409,19 +417,19 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
 
     # 마일스톤 진행률
     ms_total_result = await db.execute(
-        select(sqlfunc.count()).select_from(Milestone).where(Milestone.project_id == pid)
+        select(sqlfunc.count()).select_from(Milestone).where(Milestone.project_id == pid, Milestone.deleted_at.is_(None))
     )
     ms_total = ms_total_result.scalar() or 0
     ms_done_result = await db.execute(
         select(sqlfunc.count()).select_from(Milestone).where(
-            Milestone.project_id == pid, Milestone.status == "done"
+            Milestone.project_id == pid, Milestone.deleted_at.is_(None), Milestone.status == "done"
         )
     )
     ms_done = ms_done_result.scalar() or 0
 
     # 최근 세션
     latest_session_result = await db.execute(
-        select(SessionModel).where(SessionModel.project_id == pid)
+        select(SessionModel).where(SessionModel.project_id == pid, SessionModel.deleted_at.is_(None))
         .order_by(SessionModel.started_at.desc()).limit(1)
     )
     latest_session = latest_session_result.scalar_one_or_none()
@@ -444,13 +452,13 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
     # 열린 할일
     open_todos_result = await db.execute(
         select(sqlfunc.count()).select_from(Todo).where(
-            Todo.project_id == pid, Todo.status == "open"
+            Todo.project_id == pid, Todo.deleted_at.is_(None), Todo.status == "open"
         )
     )
     open_todos = open_todos_result.scalar() or 0
     high_todos_result = await db.execute(
         select(sqlfunc.count()).select_from(Todo).where(
-            Todo.project_id == pid, Todo.status == "open", Todo.priority == "high"
+            Todo.project_id == pid, Todo.deleted_at.is_(None), Todo.status == "open", Todo.priority == "high"
         )
     )
     high_todos = high_todos_result.scalar() or 0
@@ -458,19 +466,19 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
     # 에이전트 상태
     from app.models import InfraCost
     agents_total_result = await db.execute(
-        select(sqlfunc.count()).select_from(Agent).where(Agent.project_id == pid)
+        select(sqlfunc.count()).select_from(Agent).where(Agent.project_id == pid, Agent.deleted_at.is_(None))
     )
     agents_total = agents_total_result.scalar() or 0
     agents_running_result = await db.execute(
         select(sqlfunc.count()).select_from(Agent).where(
-            Agent.project_id == pid, Agent.status == "running"
+            Agent.project_id == pid, Agent.deleted_at.is_(None), Agent.status == "running"
         )
     )
     agents_running = agents_running_result.scalar() or 0
 
     # 세션 총 수
     sessions_total_result = await db.execute(
-        select(sqlfunc.count()).select_from(SessionModel).where(SessionModel.project_id == pid)
+        select(sqlfunc.count()).select_from(SessionModel).where(SessionModel.project_id == pid, SessionModel.deleted_at.is_(None))
     )
     sessions_total = sessions_total_result.scalar() or 0
 

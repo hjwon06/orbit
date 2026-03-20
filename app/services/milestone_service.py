@@ -1,4 +1,5 @@
-from sqlalchemy import select, update, delete, func as sqlfunc
+from datetime import datetime, timezone
+from sqlalchemy import select, update, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Milestone, Todo
 from app.schemas.milestone import MilestoneCreate, MilestoneUpdate, MilestoneDatesUpdate
@@ -7,7 +8,7 @@ from app.schemas.milestone import MilestoneCreate, MilestoneUpdate, MilestoneDat
 async def get_milestones_by_project(db: AsyncSession, project_id: int):
     stmt = (
         select(Milestone)
-        .where(Milestone.project_id == project_id)
+        .where(Milestone.project_id == project_id, Milestone.deleted_at.is_(None))
         .order_by(Milestone.sort_order, Milestone.start_date)
     )
     result = await db.execute(stmt)
@@ -40,7 +41,7 @@ async def get_milestones_by_project(db: AsyncSession, project_id: int):
 
 
 async def get_milestone(db: AsyncSession, milestone_id: int):
-    result = await db.execute(select(Milestone).where(Milestone.id == milestone_id))
+    result = await db.execute(select(Milestone).where(Milestone.id == milestone_id, Milestone.deleted_at.is_(None)))
     return result.scalar_one_or_none()
 
 
@@ -72,6 +73,8 @@ async def update_milestone_dates(db: AsyncSession, milestone_id: int, data: Mile
 
 
 async def delete_milestone(db: AsyncSession, milestone_id: int) -> bool:
-    result = await db.execute(delete(Milestone).where(Milestone.id == milestone_id))
+    result = await db.execute(
+        update(Milestone).where(Milestone.id == milestone_id).values(deleted_at=datetime.now(timezone.utc))
+    )
     await db.commit()
     return result.rowcount > 0

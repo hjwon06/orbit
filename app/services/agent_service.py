@@ -1,4 +1,4 @@
-from sqlalchemy import delete, select, update
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
@@ -9,7 +9,7 @@ from app.schemas.agent import AgentCreate, AgentUpdate, AgentRunCreate, AgentRun
 async def get_agents_by_project(db: AsyncSession, project_id: int):
     stmt = (
         select(Agent)
-        .where(Agent.project_id == project_id)
+        .where(Agent.project_id == project_id, Agent.deleted_at.is_(None))
         .options(selectinload(Agent.runs))
         .order_by(Agent.agent_code)
     )
@@ -21,7 +21,7 @@ async def get_agents_by_project(db: AsyncSession, project_id: int):
 
 
 async def get_agent(db: AsyncSession, agent_id: int):
-    stmt = select(Agent).where(Agent.id == agent_id).options(selectinload(Agent.runs))
+    stmt = select(Agent).where(Agent.id == agent_id, Agent.deleted_at.is_(None)).options(selectinload(Agent.runs))
     result = await db.execute(stmt)
     agent = result.scalar_one_or_none()
     if agent:
@@ -101,7 +101,9 @@ async def get_runs_by_agent(db: AsyncSession, agent_id: int, limit: int = 10):
 
 
 async def delete_agent(db: AsyncSession, agent_id: int) -> bool:
-    result = await db.execute(delete(Agent).where(Agent.id == agent_id))
+    result = await db.execute(
+        update(Agent).where(Agent.id == agent_id).values(deleted_at=datetime.now(timezone.utc))
+    )
     await db.commit()
     return result.rowcount > 0
 
@@ -110,7 +112,7 @@ async def get_agent_by_code(db: AsyncSession, project_slug: str, agent_code: str
     stmt = (
         select(Agent)
         .join(Project)
-        .where(Project.slug == project_slug, Agent.agent_code == agent_code)
+        .where(Project.slug == project_slug, Agent.agent_code == agent_code, Agent.deleted_at.is_(None))
         .options(selectinload(Agent.runs))
     )
     result = await db.execute(stmt)

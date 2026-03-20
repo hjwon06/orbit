@@ -80,6 +80,7 @@ async def generate_weekly_summary(db: AsyncSession, project_id: int) -> dict:
     sessions_result = await db.execute(
         select(SessionModel).where(
             SessionModel.project_id == project_id,
+            SessionModel.deleted_at.is_(None),
             sqlfunc.date(SessionModel.started_at) >= week_ago,
         ).order_by(SessionModel.started_at.desc())
     )
@@ -98,6 +99,7 @@ async def generate_weekly_summary(db: AsyncSession, project_id: int) -> dict:
     todos_result = await db.execute(
         select(Todo).where(
             Todo.project_id == project_id,
+            Todo.deleted_at.is_(None),
             Todo.status == "done",
             sqlfunc.date(Todo.completed_at) >= week_ago,
         )

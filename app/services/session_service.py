@@ -1,6 +1,6 @@
 from pathlib import Path
 from datetime import datetime, timezone
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Session, Project
 from app.schemas.session import SessionCreate, SessionUpdate, SessionFinish
@@ -12,7 +12,7 @@ WEEKDAYS_KO = ["월", "화", "수", "목", "금", "토", "일"]
 async def get_sessions_by_project(db: AsyncSession, project_id: int, limit: int = 50, offset: int = 0):
     stmt = (
         select(Session)
-        .where(Session.project_id == project_id)
+        .where(Session.project_id == project_id, Session.deleted_at.is_(None))
         .order_by(Session.started_at.desc())
         .limit(limit)
         .offset(offset)
@@ -22,7 +22,7 @@ async def get_sessions_by_project(db: AsyncSession, project_id: int, limit: int 
 
 
 async def get_session(db: AsyncSession, session_id: int):
-    result = await db.execute(select(Session).where(Session.id == session_id))
+    result = await db.execute(select(Session).where(Session.id == session_id, Session.deleted_at.is_(None)))
     return result.scalar_one_or_none()
 
 
@@ -81,7 +81,9 @@ async def finish_session(db: AsyncSession, session_id: int, data: SessionFinish)
 
 
 async def delete_session(db: AsyncSession, session_id: int) -> bool:
-    result = await db.execute(delete(Session).where(Session.id == session_id))
+    result = await db.execute(
+        update(Session).where(Session.id == session_id).values(deleted_at=datetime.now(timezone.utc))
+    )
     await db.commit()
     return result.rowcount > 0
 
