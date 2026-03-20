@@ -332,13 +332,85 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        openReset() {
+        async openReset() {
             this.resetError = '';
             this.resetResult = '';
+            // 프로젝트의 project_yaml에서 에이전트 정보 가져오기
+            try {
+                const resp = await fetch(`/api/projects/${window.__projectSlug}`);
+                if (resp.ok) {
+                    const project = await resp.json();
+                    if (project.project_yaml) {
+                        const parsed = this.parseYamlAgents(project.project_yaml);
+                        if (parsed) {
+                            this.resetText = parsed;
+                            this.showReset = true;
+                            return;
+                        }
+                    }
+                }
+            } catch (e) {}
+            // fallback: 현재 에이전트 목록
             this.resetText = this.agents.map(a =>
                 `${a.agent_code}: ${a.agent_name}, ${a.model_tier}`
             ).join('\n');
             this.showReset = true;
+        },
+
+        parseYamlAgents(yaml) {
+            const lines = yaml.split('\n');
+            let inAgents = false;
+            const result = [];
+            let currentCode = null;
+            let currentProps = {};
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed === 'agents:') { inAgents = true; continue; }
+                if (inAgents) {
+                    // 새 top-level 키 → agents 섹션 종료
+                    if (trimmed && !trimmed.startsWith('#') && !line.startsWith(' ') && !line.startsWith('\t')) break;
+
+                    // 인라인 형식: A0: { role: 인프라, model: opus }
+                    const inlineMatch = trimmed.match(/^(A[0-4]|QA)\s*:\s*\{(.+)\}/);
+                    if (inlineMatch) {
+                        const code = inlineMatch[1];
+                        const props = {};
+                        inlineMatch[2].split(',').forEach(pair => {
+                            const [k, ...rest] = pair.split(':');
+                            const v = rest.join(':').trim();
+                            if (k && v) props[k.trim()] = v;
+                        });
+                        result.push(`${code}: ${props.role || props.name || code}, ${props.model || props.tier || 'opus'}`);
+                        continue;
+                    }
+
+                    // 멀티라인 형식: "A0:" 또는 "  A0:"
+                    const codeMatch = trimmed.match(/^(A[0-4]|QA)\s*:$/);
+                    if (codeMatch) {
+                        // 이전 에이전트 저장
+                        if (currentCode) {
+                            result.push(`${currentCode}: ${currentProps.name || currentProps.role || currentCode}, ${currentProps.tier || currentProps.model || 'opus'}`);
+                        }
+                        currentCode = codeMatch[1];
+                        currentProps = {};
+                        continue;
+                    }
+
+                    // 멀티라인 속성: "name: Infrastructure"
+                    if (currentCode) {
+                        const propMatch = trimmed.match(/^(name|role|tier|model)\s*:\s*(.+)/);
+                        if (propMatch) {
+                            currentProps[propMatch[1]] = propMatch[2].trim();
+                        }
+                    }
+                }
+            }
+            // 마지막 에이전트 저장
+            if (currentCode) {
+                result.push(`${currentCode}: ${currentProps.name || currentProps.role || currentCode}, ${currentProps.tier || currentProps.model || 'opus'}`);
+            }
+            return result.length > 0 ? result.join('\n') : '';
         },
 
         parseResetText(text) {

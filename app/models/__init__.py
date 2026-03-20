@@ -16,6 +16,7 @@ class Project(Base):
     stack = Column(String(200), default="")
     color = Column(String(7), default="#534AB7")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    project_yaml = Column(Text, nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 

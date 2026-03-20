@@ -19,6 +19,7 @@ class ProjectUpdate(BaseModel):
     repo_url: Optional[str] = None
     stack: Optional[str] = None
     color: Optional[str] = None
+    project_yaml: Optional[str] = None
 
 
 class ProjectResponse(BaseModel):
@@ -30,6 +31,7 @@ class ProjectResponse(BaseModel):
     repo_url: str
     stack: str
     color: str
+    project_yaml: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 
