@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from datetime import datetime, timezone
 from app.models import Agent, AgentRun, Project
-from app.schemas.agent import AgentCreate, AgentUpdate, AgentRunCreate, AgentRunFinish
+from app.schemas.agent import AgentCreate, AgentUpdate, AgentRunCreate, AgentRunFinish, AgentSyncRequest
 
 
 async def get_agents_by_project(db: AsyncSession, project_id: int):
@@ -106,6 +106,46 @@ async def delete_agent(db: AsyncSession, agent_id: int) -> bool:
     )
     await db.commit()
     return result.rowcount > 0
+
+
+async def sync_agents(db: AsyncSession, project_id: int, data: AgentSyncRequest) -> dict:
+    # 1. 기존 에이전트 목록 조회 (deleted_at IS NULL)
+    stmt = select(Agent).where(Agent.project_id == project_id, Agent.deleted_at.is_(None))
+    result = await db.execute(stmt)
+    existing = {a.agent_code: a for a in result.scalars().all()}
+
+    requested_codes = {item.agent_code for item in data.agents}
+    created = 0
+    updated = 0
+    deleted = 0
+
+    # 2. 요청에 있는 agent_code 처리
+    for item in data.agents:
+        if item.agent_code in existing:
+            # UPDATE
+            agent = existing[item.agent_code]
+            agent.agent_name = item.agent_name
+            agent.model_tier = item.model_tier
+            updated += 1
+        else:
+            # CREATE
+            agent = Agent(
+                project_id=project_id,
+                agent_code=item.agent_code,
+                agent_name=item.agent_name,
+                model_tier=item.model_tier,
+            )
+            db.add(agent)
+            created += 1
+
+    # 3. 요청에 없는 agent_code → soft DELETE
+    for code, agent in existing.items():
+        if code not in requested_codes:
+            agent.deleted_at = datetime.now(timezone.utc)
+            deleted += 1
+
+    await db.commit()
+    return {"created": created, "updated": updated, "deleted": deleted}
 
 
 async def get_agent_by_code(db: AsyncSession, project_slug: str, agent_code: str) -> Agent | None:

@@ -4,11 +4,12 @@ from app.database import get_db
 from app.schemas.agent import (
     AgentCreate, AgentUpdate, AgentResponse,
     AgentRunCreate, AgentRunFinish, AgentRunResponse,
+    AgentSyncRequest, AgentSyncResponse,
 )
 from app.services.agent_service import (
     get_agents_by_project, get_agent, create_agent, update_agent,
     delete_agent, heartbeat_agent, start_run, finish_run, get_runs_by_agent,
-    get_agent_by_code,
+    get_agent_by_code, sync_agents,
 )
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -17,6 +18,14 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 @router.get("/project/{project_id}", response_model=list[AgentResponse])
 async def list_agents(project_id: int, db: AsyncSession = Depends(get_db)):
     return await get_agents_by_project(db, project_id)
+
+
+@router.post("/project/{project_id}/sync", response_model=AgentSyncResponse)
+async def sync_project_agents(
+    project_id: int, data: AgentSyncRequest, db: AsyncSession = Depends(get_db)
+):
+    result = await sync_agents(db, project_id, data)
+    return result
 
 
 @router.get("/lookup", response_model=AgentResponse)

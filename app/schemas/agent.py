@@ -42,6 +42,22 @@ class AgentRunResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AgentSyncItem(BaseModel):
+    agent_code: str
+    agent_name: str
+    model_tier: str = "opus"
+
+
+class AgentSyncRequest(BaseModel):
+    agents: list[AgentSyncItem]
+
+
+class AgentSyncResponse(BaseModel):
+    created: int
+    updated: int
+    deleted: int
+
+
 class AgentResponse(BaseModel):
     id: int
     project_id: int

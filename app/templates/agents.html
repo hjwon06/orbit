@@ -12,6 +12,10 @@
         <div class="flex items-center gap-3">
             <span class="text-[11px] text-muted">3초마다 자동 갱신</span>
             <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <button @click="openReset()"
+                    class="border border-border text-muted text-xs px-3 py-1.5 rounded-2xl hover:bg-surface transition-colors">
+                재설정
+            </button>
             <button @click="openEditor(null)"
                     class="bg-accent text-white text-xs px-3 py-1.5 rounded-2xl hover:bg-accent-dark transition-colors">
                 + 추가
@@ -190,6 +194,26 @@
             </div>
         </div>
     </template>
+
+    <!-- Reset Modal -->
+    <template x-if="showReset">
+        <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showReset = false">
+            <div class="bg-card rounded-xl shadow-lg border border-border p-6 w-full max-w-[500px] mx-4" @click.stop>
+                <h3 class="text-sm font-semibold mb-1">에이전트 재설정</h3>
+                <p class="text-[11px] text-muted mb-4">한 줄에 하나씩: <code class="bg-surface px-1 py-0.5 rounded text-[10px]">CODE: 이름, 모델</code> (모델 생략 시 opus)</p>
+                <textarea x-model="resetText"
+                          rows="10"
+                          class="w-full px-3 py-2 text-sm font-mono border border-border rounded-2xl focus:outline-none focus:border-accent bg-white resize-y"
+                          placeholder="A0: 인프라, opus"></textarea>
+                <p x-show="resetError" class="text-[11px] text-danger mt-1" x-text="resetError"></p>
+                <p x-show="resetResult" class="text-[11px] text-success mt-1" x-text="resetResult"></p>
+                <div class="flex justify-end gap-2 mt-4">
+                    <button type="button" @click="showReset = false" class="px-3 py-1.5 text-xs text-muted rounded-2xl">취소</button>
+                    <button type="button" @click="submitReset()" class="px-3 py-1.5 text-xs bg-accent text-white rounded-2xl hover:bg-accent-dark">적용</button>
+                </div>
+            </div>
+        </div>
+    </template>
 </div>
 {% endblock %}
 
@@ -205,6 +229,10 @@ document.addEventListener('alpine:init', () => {
         agents: [],
         showModal: false,
         form: { id: null, agent_code: '', agent_name: '', model_tier: 'opus' },
+        showReset: false,
+        resetText: '',
+        resetError: '',
+        resetResult: '',
         _timer: null,
 
         init() {
@@ -214,7 +242,7 @@ document.addEventListener('alpine:init', () => {
 
         startPolling() {
             this._timer = setInterval(() => {
-                if (this.showModal) return;
+                if (this.showModal || this.showReset) return;
                 this.fetchAgents();
             }, 3000);
         },
@@ -301,6 +329,64 @@ document.addEventListener('alpine:init', () => {
             const res = await fetch(`/api/agents/${id}`, { method: 'DELETE' });
             if (res.ok) {
                 this.agents = this.agents.filter(a => a.id !== id);
+            }
+        },
+
+        openReset() {
+            this.resetError = '';
+            this.resetResult = '';
+            this.resetText = this.agents.map(a =>
+                `${a.agent_code}: ${a.agent_name}, ${a.model_tier}`
+            ).join('\n');
+            this.showReset = true;
+        },
+
+        parseResetText(text) {
+            const lines = text.split('\n');
+            const agents = [];
+            for (const raw of lines) {
+                const line = raw.trim();
+                if (!line || line.startsWith('#')) continue;
+                const colonIdx = line.indexOf(':');
+                if (colonIdx < 0) return { error: `잘못된 형식: "${line}"` };
+                const agent_code = line.substring(0, colonIdx).trim();
+                if (!agent_code) return { error: `코드가 비어 있습니다: "${line}"` };
+                const rest = line.substring(colonIdx + 1).trim();
+                const parts = rest.split(',').map(s => s.trim());
+                const agent_name = parts[0];
+                if (!agent_name) return { error: `이름이 비어 있습니다: "${line}"` };
+                const model_tier = parts[1] || 'opus';
+                agents.push({ agent_code, agent_name, model_tier });
+            }
+            if (agents.length === 0) return { error: '에이전트가 하나도 없습니다.' };
+            return { agents };
+        },
+
+        async submitReset() {
+            this.resetError = '';
+            this.resetResult = '';
+            const parsed = this.parseResetText(this.resetText);
+            if (parsed.error) {
+                this.resetError = parsed.error;
+                return;
+            }
+            try {
+                const res = await fetch(`/api/agents/project/${window.__projectId}/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agents: parsed.agents }),
+                });
+                if (res.ok) {
+                    const result = await res.json();
+                    this.resetResult = `완료: ${result.created}개 생성, ${result.updated}개 수정, ${result.deleted}개 삭제`;
+                    await this.fetchAgents();
+                    setTimeout(() => { this.showReset = false; }, 1200);
+                } else {
+                    const err = await res.json();
+                    this.resetError = err.detail || '서버 오류가 발생했습니다.';
+                }
+            } catch (e) {
+                this.resetError = '네트워크 오류가 발생했습니다.';
             }
         },
 
