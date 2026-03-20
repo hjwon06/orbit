@@ -50,23 +50,27 @@
             <template x-for="m in milestones" :key="m.id">
                 <div class="flex border-b border-border/50 group/row hover:bg-surface/30 transition-colors">
                     <!-- Label (sticky) -->
-                    <div class="w-48 shrink-0 sticky left-0 bg-card z-10 px-4 py-3 border-r border-border flex items-center justify-between group-hover/row:bg-surface/30 transition-colors">
-                        <div class="flex items-center gap-2 min-w-0">
-                            <span class="w-2 h-2 rounded-full shrink-0"
-                                  :class="{
-                                      'bg-accent': m.status === 'active',
-                                      'bg-emerald-500': m.status === 'done',
-                                      'bg-gray-300': m.status === 'planned'
-                                  }"></span>
-                            <span class="text-sm truncate" x-text="m.title"></span>
+                    <div class="w-48 shrink-0 sticky left-0 bg-card z-10 px-4 py-3 border-r border-border flex flex-col justify-center group-hover/row:bg-surface/30 transition-colors">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center gap-2 min-w-0">
+                                <span class="w-2 h-2 rounded-full shrink-0"
+                                      :class="{
+                                          'bg-accent': m.status === 'active',
+                                          'bg-emerald-500': m.status === 'done',
+                                          'bg-gray-300': m.status === 'planned'
+                                      }"></span>
+                                <span class="text-sm truncate" x-text="m.title"></span>
+                            </div>
+                            <button @click="openEdit(m)"
+                                    class="opacity-0 group-hover/row:opacity-100 text-muted hover:text-accent transition-all ml-1 shrink-0">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                                          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
+                                </svg>
+                            </button>
                         </div>
-                        <button @click="openEdit(m)"
-                                class="opacity-0 group-hover/row:opacity-100 text-muted hover:text-accent transition-all ml-1 shrink-0">
-                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                                      d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/>
-                            </svg>
-                        </button>
+                        <span class="text-[9px] text-muted ml-4" x-show="m.todo_total > 0"
+                              x-text="m.todo_done + '/' + m.todo_total + ' (' + m.todo_pct + '%)'"></span>
                     </div>
                     <!-- Bar area -->
                     <div class="relative h-12" :style="'width:' + totalWidth + 'px'">
@@ -82,6 +86,12 @@
                             <!-- Duration label -->
                             <span class="text-[10px] font-medium opacity-80 pointer-events-none"
                                   x-text="daysBetween(m.start_date, m.end_date) + '일'"></span>
+                            <!-- Progress overlay -->
+                            <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/10 rounded-b-md pointer-events-none overflow-hidden"
+                                 x-show="m.todo_total > 0">
+                                <div class="h-full bg-white/40 rounded-b-md transition-all"
+                                     :style="'width:' + m.todo_pct + '%'"></div>
+                            </div>
                             <!-- Right resize handle -->
                             <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-md hover:bg-black/20 transition-colors"
                                  @mousedown.prevent.stop="startDrag($event, m, 'right')"></div>
@@ -410,7 +420,15 @@ document.addEventListener('alpine:init', () => {
                 if (res.ok) {
                     const updated = await res.json();
                     const idx = this.milestones.findIndex(m => m.id === this.editId);
-                    if (idx >= 0) this.milestones[idx] = { ...this.milestones[idx], ...updated };
+                    if (idx >= 0) {
+                        const old = this.milestones[idx];
+                        this.milestones[idx] = {
+                            ...old, ...updated,
+                            todo_total: old.todo_total,
+                            todo_done: old.todo_done,
+                            todo_pct: old.todo_pct,
+                        };
+                    }
                 }
             } else {
                 const res = await fetch('/api/milestones', {
