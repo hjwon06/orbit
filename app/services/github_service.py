@@ -18,6 +18,7 @@ _last_auto_sync: dict[int, datetime] = {}
 AUTO_SYNC_COOLDOWN_SEC = 600  # 10분
 
 GITHUB_API = "https://api.github.com"
+GITHUB_GRAPHQL = "https://api.github.com/graphql"
 
 
 def _parse_repo(repo_url: str) -> tuple[str, str] | None:
@@ -65,8 +66,168 @@ async def check_github_ready(db: AsyncSession, project_id: int) -> dict:
     }
 
 
+async def _sync_commits_graphql(
+    client: httpx.AsyncClient,
+    owner: str,
+    repo: str,
+    headers: dict,
+    since: str,
+) -> dict[str, dict]:
+    """GraphQL 단일 쿼리로 커밋 히스토리 수집 (커서 페이지네이션)."""
+    query = """
+    query($owner: String!, $repo: String!, $since: GitTimestamp!, $after: String) {
+      repository(owner: $owner, name: $repo) {
+        defaultBranchRef {
+          target {
+            ... on Commit {
+              history(first: 100, since: $since, after: $after) {
+                totalCount
+                pageInfo { hasNextPage endCursor }
+                nodes { oid committedDate additions deletions }
+              }
+            }
+          }
+        }
+      }
+    }
+    """
+    commits_by_date: dict[str, dict] = defaultdict(
+        lambda: {"count": 0, "additions": 0, "deletions": 0},
+    )
+    after: str | None = None
+
+    while True:
+        variables: dict = {
+            "owner": owner,
+            "repo": repo,
+            "since": since,
+        }
+        if after:
+            variables["after"] = after
+
+        resp = await client.post(
+            GITHUB_GRAPHQL,
+            headers=headers,
+            json={"query": query, "variables": variables},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+
+        # GraphQL 에러 체크 (HTTP 200이지만 errors 배열 포함)
+        if "errors" in body:
+            raise RuntimeError(f"GraphQL 에러: {body['errors']}")
+
+        repository = body.get("data", {}).get("repository")
+        if not repository:
+            raise RuntimeError("리포지토리를 찾을 수 없습니다.")
+
+        default_ref = repository.get("defaultBranchRef")
+        if not default_ref:
+            # 빈 리포지토리 (커밋 없음)
+            logger.info(f"빈 리포지토리: {owner}/{repo}")
+            break
+
+        history = default_ref["target"]["history"]
+        nodes = history.get("nodes", [])
+
+        for node in nodes:
+            commit_date = node["committedDate"][:10]
+            commits_by_date[commit_date]["count"] += 1
+            commits_by_date[commit_date]["additions"] += node.get("additions", 0)
+            commits_by_date[commit_date]["deletions"] += node.get("deletions", 0)
+
+        page_info = history.get("pageInfo", {})
+        if page_info.get("hasNextPage"):
+            after = page_info["endCursor"]
+        else:
+            break
+
+    return dict(commits_by_date)
+
+
+async def _sync_commits_rest(
+    client: httpx.AsyncClient,
+    owner: str,
+    repo: str,
+    headers: dict,
+    since: str,
+) -> dict[str, dict]:
+    """REST API N+1 방식 커밋 수집 (GraphQL fallback용)."""
+    commits_by_date: dict[str, dict] = defaultdict(
+        lambda: {"count": 0, "additions": 0, "deletions": 0},
+    )
+    page = 1
+
+    while True:
+        resp = await client.get(
+            f"{GITHUB_API}/repos/{owner}/{repo}/commits",
+            headers=headers,
+            params={"since": since, "per_page": 100, "page": page},
+        )
+        resp.raise_for_status()
+        items = resp.json()
+        if not items:
+            break
+
+        for commit in items:
+            commit_date = commit["commit"]["author"]["date"][:10]
+            commits_by_date[commit_date]["count"] += 1
+
+            # 개별 커밋 상세에서 additions/deletions 가져오기 (rate limit 주의)
+            sha = commit["sha"]
+            try:
+                detail_resp = await client.get(
+                    f"{GITHUB_API}/repos/{owner}/{repo}/commits/{sha}",
+                    headers=headers,
+                )
+                if detail_resp.status_code == 200:
+                    stats = detail_resp.json().get("stats", {})
+                    commits_by_date[commit_date]["additions"] += stats.get("additions", 0)
+                    commits_by_date[commit_date]["deletions"] += stats.get("deletions", 0)
+            except Exception:
+                logger.warning(f"커밋 상세 조회 실패: {sha}")
+
+        if len(items) < 100:
+            break
+        page += 1
+
+    return dict(commits_by_date)
+
+
+async def _upsert_commit_stats(
+    db: AsyncSession,
+    project_id: int,
+    commits_by_date: dict[str, dict],
+) -> int:
+    """커밋 통계 DB upsert. 동기화된 날짜 수 반환."""
+    synced = 0
+    for date_str, data in commits_by_date.items():
+        d = date.fromisoformat(date_str)
+        existing = await db.execute(
+            select(CommitStat).where(
+                CommitStat.project_id == project_id,
+                CommitStat.stat_date == d,
+            )
+        )
+        stat = existing.scalar_one_or_none()
+        if stat:
+            stat.commit_count = data["count"]  # type: ignore[assignment]
+            stat.additions = data["additions"]  # type: ignore[assignment]
+            stat.deletions = data["deletions"]  # type: ignore[assignment]
+            stat.source = "github"  # type: ignore[assignment]
+        else:
+            db.add(CommitStat(
+                project_id=project_id, stat_date=d,
+                commit_count=data["count"], additions=data["additions"],
+                deletions=data["deletions"], source="github",
+            ))
+        synced += 1
+    await db.commit()
+    return synced
+
+
 async def sync_commits(db: AsyncSession, project_id: int, days: int = 30) -> dict:
-    """GitHub 커밋 → commit_stats 동기화."""
+    """GitHub 커밋 → commit_stats 동기화. GraphQL 우선, 실패 시 REST fallback."""
     headers = _get_headers()
     if not headers:
         return {"error": "ORBIT_GITHUB_TOKEN이 설정되지 않았습니다."}
@@ -85,63 +246,21 @@ async def sync_commits(db: AsyncSession, project_id: int, days: int = 30) -> dic
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
-            commits_by_date: dict[str, dict] = defaultdict(lambda: {"count": 0, "additions": 0, "deletions": 0})
-            page = 1
-
-            while True:
-                resp = await client.get(
-                    f"{GITHUB_API}/repos/{owner}/{repo}/commits",
-                    headers=headers,
-                    params={"since": since, "per_page": 100, "page": page},
+            # GraphQL로 시도
+            try:
+                commits_by_date = await _sync_commits_graphql(
+                    client, owner, repo, headers, since,
                 )
-                resp.raise_for_status()
-                items = resp.json()
-                if not items:
-                    break
-
-                for commit in items:
-                    commit_date = commit["commit"]["author"]["date"][:10]
-                    commits_by_date[commit_date]["count"] += 1
-
-                    # 개별 커밋 상세에서 additions/deletions 가져오기 (rate limit 주의)
-                    sha = commit["sha"]
-                    detail_resp = await client.get(
-                        f"{GITHUB_API}/repos/{owner}/{repo}/commits/{sha}",
-                        headers=headers,
-                    )
-                    if detail_resp.status_code == 200:
-                        stats = detail_resp.json().get("stats", {})
-                        commits_by_date[commit_date]["additions"] += stats.get("additions", 0)
-                        commits_by_date[commit_date]["deletions"] += stats.get("deletions", 0)
-
-                if len(items) < 100:
-                    break
-                page += 1
+                logger.info(f"GraphQL 커밋 동기화 성공: {owner}/{repo}")
+            except Exception as e:
+                # fallback: 기존 REST 방식
+                logger.warning(f"GraphQL 실패, REST fallback: {owner}/{repo} — {e}")
+                commits_by_date = await _sync_commits_rest(
+                    client, owner, repo, headers, since,
+                )
 
             # DB upsert
-            synced = 0
-            for date_str, data in commits_by_date.items():
-                d = date.fromisoformat(date_str)
-                existing = await db.execute(
-                    select(CommitStat).where(
-                        CommitStat.project_id == project_id,
-                        CommitStat.stat_date == d,
-                    )
-                )
-                stat = existing.scalar_one_or_none()
-                if stat:
-                    stat.commit_count = data["count"]  # type: ignore[assignment]
-                    stat.additions = data["additions"]  # type: ignore[assignment]
-                    stat.deletions = data["deletions"]  # type: ignore[assignment]
-                    stat.source = "github"  # type: ignore[assignment]
-                else:
-                    db.add(CommitStat(
-                        project_id=project_id, stat_date=d,
-                        commit_count=data["count"], additions=data["additions"],
-                        deletions=data["deletions"], source="github",
-                    ))
-                synced += 1
-            await db.commit()
+            synced = await _upsert_commit_stats(db, project_id, commits_by_date)
 
             return {"ok": True, "synced_days": synced, "repo": f"{owner}/{repo}"}
 
