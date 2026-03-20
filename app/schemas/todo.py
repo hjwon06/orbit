@@ -33,6 +33,7 @@ class TodoResponse(BaseModel):
     source: str
     github_issue_url: Optional[str]
     ai_reasoning: str
+    diary_ref: Optional[str] = None
     created_at: datetime
     completed_at: Optional[datetime]
 

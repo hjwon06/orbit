@@ -182,6 +182,7 @@ class Todo(Base):
     source = Column(String(20), default="manual")
     github_issue_url = Column(String(500), nullable=True)
     ai_reasoning = Column(Text, default="")
+    diary_ref = Column(String(100), nullable=True, unique=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True)

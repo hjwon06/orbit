@@ -495,6 +495,10 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
     from app.services.github_service import auto_sync_if_needed
     github_sync = await auto_sync_if_needed(db, pid)
 
+    # 옵시디언 다이어리 자동 동기화 (1시간 쿨다운)
+    from app.services.diary_sync_service import auto_sync_diary_if_needed
+    diary_sync = await auto_sync_diary_if_needed(db, pid, project.slug)
+
     summary = {
         "ms_total": ms_total,
         "ms_done": ms_done,
@@ -510,6 +514,7 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
         "sessions_total": sessions_total,
         "costs_total": costs_total,
         "github_synced": github_sync is not None,
+        "diary_synced": diary_sync is not None,
     }
 
     return templates.TemplateResponse("project_detail.html", {
