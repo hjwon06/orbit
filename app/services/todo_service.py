@@ -96,7 +96,7 @@ async def ai_recommend_todos(db: AsyncSession, project_id: int) -> list[Todo]:
 {chr(10).join(f'- ✅ {m.title}' for m in done_milestones) or '없음'}
 
 [진행 중/계획된 마일스톤] (이 작업들을 중심으로 추천하세요):
-{chr(10).join(f'- {m.title} ({m.status})' for m in active_milestones) or '없음 — 새로운 기능을 제안하세요'}
+{chr(10).join(f'- id={m.id} | {m.title} ({m.status})' for m in active_milestones) or '없음 — 새로운 기능을 제안하세요'}
 
 최근 세션:
 {chr(10).join(f'- {s.title} ({s.status})' for s in recent_sessions)}
@@ -112,7 +112,7 @@ async def ai_recommend_todos(db: AsyncSession, project_id: int) -> list[Todo]:
                 json={
                     "model": "gpt-4o",
                     "messages": [
-                        {"role": "system", "content": "당신은 1인 개발자의 프로젝트 관제 AI입니다.\n\n중요 맥락:\n- 이 프로젝트는 1인 개발자가 혼자 사용하는 로컬 관제 도구입니다.\n- 서버는 로컬 Docker로만 실행하며, 배포/클라우드 운영 안 합니다.\n- 사용자는 1명(관리자 본인)이므로 멀티유저, 피드백 시스템, 알림 시스템 등은 불필요합니다.\n- CI/CD, 성능 최적화, 보안 강화 같은 운영 관점 작업은 추천하지 마세요.\n- 개발자의 생산성을 직접 높여주는 기능이나, 대시보드를 더 유용하게 만드는 개선을 추천하세요.\n\n규칙:\n1. 이미 완료된(✅) 마일스톤 관련 작업은 절대 추천하지 마세요.\n2. 진행 중/계획된 마일스톤이 있으면 그것을 중심으로 추천하세요.\n3. 진행 중/계획된 마일스톤이 없으면 프로젝트에 의미 있는 새로운 기능이나 개선을 제안하세요.\n4. 현재 열린 할일과 중복되는 추천은 하지 마세요.\n5. 반드시 한국어로 작성하세요.\n\n다음에 해야 할 작업 3개를 JSON 배열로 반환하세요. 형식: [{\"title\": \"...\", \"description\": \"...\", \"priority\": \"high|medium|low\", \"reasoning\": \"...\"}]. JSON만 반환하세요."},
+                        {"role": "system", "content": "당신은 1인 개발자의 프로젝트 관제 AI입니다.\n\n중요 맥락:\n- 이 프로젝트는 1인 개발자가 혼자 사용하는 로컬 관제 도구입니다.\n- 서버는 로컬 Docker로만 실행하며, 배포/클라우드 운영 안 합니다.\n- 사용자는 1명(관리자 본인)이므로 멀티유저, 피드백 시스템, 알림 시스템 등은 불필요합니다.\n- CI/CD, 성능 최적화, 보안 강화 같은 운영 관점 작업은 추천하지 마세요.\n- 개발자의 생산성을 직접 높여주는 기능이나, 대시보드를 더 유용하게 만드는 개선을 추천하세요.\n\n규칙:\n1. 이미 완료된(✅) 마일스톤 관련 작업은 절대 추천하지 마세요.\n2. 진행 중/계획된 마일스톤이 있으면 그것을 중심으로 추천하세요.\n3. 진행 중/계획된 마일스톤이 없으면 프로젝트에 의미 있는 새로운 기능이나 개선을 제안하세요.\n4. 현재 열린 할일과 중복되는 추천은 하지 마세요.\n5. 반드시 한국어로 작성하세요.\n\n다음에 해야 할 작업 3개를 JSON 배열로 반환하세요. 형식: [{\"title\": \"...\", \"description\": \"...\", \"priority\": \"high|medium|low\", \"milestone_id\": 숫자|null, \"reasoning\": \"...\"}]. 각 할일에 가장 적합한 마일스톤의 id를 milestone_id에 넣으세요. 해당하는 것이 없으면 null로 하세요. 완료된 마일스톤의 id는 사용하지 마세요. JSON만 반환하세요."},
                         {"role": "user", "content": context},
                     ],
                     "temperature": 0.7,
@@ -130,9 +130,18 @@ async def ai_recommend_todos(db: AsyncSession, project_id: int) -> list[Todo]:
             items = json.loads(content)
 
             created = []
+            valid_ms_ids = {m.id for m in active_milestones}
             for item in items[:3]:
+                raw_ms_id = item.get("milestone_id")
+                try:
+                    raw_ms_id = int(raw_ms_id) if raw_ms_id is not None else None
+                except (ValueError, TypeError):
+                    raw_ms_id = None
+                milestone_id = raw_ms_id if raw_ms_id in valid_ms_ids else None
+
                 todo = Todo(
                     project_id=project_id,
+                    milestone_id=milestone_id,
                     title=item["title"],
                     description=item.get("description", ""),
                     priority=item.get("priority", "medium"),
@@ -253,6 +262,7 @@ async def _fallback_recommendations(db: AsyncSession, project_id: int) -> list[T
     for m in milestones:
         todo = Todo(
             project_id=project_id,
+            milestone_id=m.id,
             title=f"{m.title} 진행하기",
             description=f"마일스톤 '{m.title}'의 다음 단계를 진행합니다.",
             priority="high" if m.status == "active" else "medium",
