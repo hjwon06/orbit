@@ -9,7 +9,7 @@ BASE_URL = "http://localhost:8000"
 async def client():
     async with AsyncClient(base_url=BASE_URL) as c:
         # 로그인해서 세션 쿠키 획득
-        resp = await c.post("/login", data={"username": "admin", "password": "orbit2026"}, follow_redirects=False)
+        resp = await c.post("/login", data={"username": "admin", "password": "1234"}, follow_redirects=False)
         if "orbit_session" in resp.cookies:
             c.cookies.set("orbit_session", resp.cookies["orbit_session"])
         yield c

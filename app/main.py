@@ -61,7 +61,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 로컬 API 면제 (Claude Code Hook 연동용)
-        LOCAL_API_EXEMPT = ("/api/agents", "/api/projects/")
+        LOCAL_API_EXEMPT = ("/api/agents", "/api/projects/", "/api/sessions", "/api/milestones", "/api/todos")
         if any(path.startswith(p) for p in LOCAL_API_EXEMPT):
             client_ip = request.client.host if request.client else ""
             if client_ip in {"127.0.0.1", "::1"} or client_ip.startswith("172."):

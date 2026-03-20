@@ -37,7 +37,7 @@ class Agent(Base):
     project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
     agent_code = Column(String(10), nullable=False)
     agent_name = Column(String(100), nullable=False)
-    model_tier = Column(String(20), default="opus")
+    model_tier = Column(String(20), default="opus", server_default="opus")
     status = Column(String(20), default="idle")
     current_task = Column(String(200), default="")
     last_heartbeat = Column(DateTime(timezone=True), nullable=True)
@@ -88,6 +88,7 @@ class Milestone(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project", back_populates="milestones")
+    todos = relationship("Todo", back_populates="milestone")
 
     def __repr__(self):
         return f"<Milestone {self.title}>"
@@ -173,6 +174,7 @@ class Todo(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
+    milestone_id = Column(Integer, ForeignKey("ob_milestones.id", ondelete="SET NULL"), nullable=True)
     title = Column(String(300), nullable=False)
     description = Column(Text, default="")
     priority = Column(String(10), default="medium")
@@ -185,6 +187,7 @@ class Todo(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project", back_populates="todos")
+    milestone = relationship("Milestone", back_populates="todos")
 
     def __repr__(self):
         return f"<Todo {self.title}:{self.status}>"

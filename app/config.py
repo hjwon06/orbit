@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     obsidian_vault_path: str = r"C:\Users\win11\Desktop\ObsidianVault"
 
     admin_username: str = "admin"
-    admin_password: str = "orbit2026"
+    admin_password: str = "1234"
     secret_key: str = "orbit-secret-change-me-in-production"
 
     managed_databases: str = '[{"alias":"orbit","url":"postgresql://orbit:orbit@localhost:5432/orbit","description":"ORBIT 관제 허브"}]'

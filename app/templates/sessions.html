@@ -39,7 +39,7 @@
                         <span class="w-2 h-2 rounded-full bg-accent animate-pulse"></span>
                         <span class="text-sm" x-text="s.title"></span>
                         <span class="text-[11px] text-muted" x-text="s.agent_code || ''"></span>
-                        <span class="text-[11px] text-muted" x-text="elapsedTime(s.started_at)"></span>
+                        <span class="text-[11px] font-mono text-accent font-semibold" x-text="liveTimer(s.started_at)"></span>
                     </div>
                     <button @click="openFinish(s)"
                             class="text-xs bg-accent text-white px-2.5 py-1 rounded-md hover:bg-accent-dark transition-colors">
@@ -83,6 +83,9 @@
                                                 <span x-show="s.duration_min" class="ml-1 text-accent"
                                                       x-text="'(' + s.duration_min + '분)'"></span>
                                             </span>
+                                        </template>
+                                        <template x-if="s.status === 'running'">
+                                            <span class="ml-1 font-mono text-accent font-semibold" x-text="liveTimer(s.started_at)"></span>
                                         </template>
                                     </p>
                                     <!-- Summary preview -->
@@ -237,10 +240,15 @@ document.addEventListener('alpine:init', () => {
         startForm: { title: '', agent_code: '' },
         editorForm: { title: '', summary: '', status: 'done' },
 
+        _tick: 0,
+
         init() {
             this.sessions = window.__sessions || [];
             this.agents = window.__agents || [];
-            setInterval(() => this.$forceUpdate?.(), 60000);
+            // 진행 중 세션이 있으면 1초마다 타이머 갱신
+            setInterval(() => {
+                if (this.runningSessions.length > 0) this._tick++;
+            }, 1000);
         },
 
         renderMd(text) {
@@ -283,6 +291,17 @@ document.addEventListener('alpine:init', () => {
             const mins = Math.round((Date.now() - new Date(isoStr)) / 60000);
             if (mins < 60) return `${mins}분 경과`;
             return `${Math.floor(mins/60)}시간 ${mins%60}분 경과`;
+        },
+
+        liveTimer(isoStr) {
+            void this._tick; // reactive dependency
+            if (!isoStr) return '';
+            const diff = Math.max(0, Math.floor((Date.now() - new Date(isoStr)) / 1000));
+            const h = Math.floor(diff / 3600);
+            const m = Math.floor((diff % 3600) / 60);
+            const s = diff % 60;
+            const pad = n => String(n).padStart(2, '0');
+            return `${pad(h)}:${pad(m)}:${pad(s)}`;
         },
 
         /* --- Start --- */

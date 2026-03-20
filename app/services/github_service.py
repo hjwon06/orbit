@@ -1,6 +1,7 @@
 """GitHub 연동 — 토큰 + repo_url 설정 시 자동 동작."""
 import re
-from datetime import date, timedelta
+import logging
+from datetime import date, datetime, timedelta
 from collections import defaultdict
 
 import httpx
@@ -9,6 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models import Project, CommitStat, Todo
 from app.config import get_settings
+
+logger = logging.getLogger(__name__)
+
+# 프로젝트별 마지막 자동 동기화 시각 (메모리 캐시, 10분 쿨다운)
+_last_auto_sync: dict[int, datetime] = {}
+AUTO_SYNC_COOLDOWN_SEC = 600  # 10분
 
 GITHUB_API = "https://api.github.com"
 
@@ -208,3 +215,27 @@ async def sync_issues(db: AsyncSession, project_id: int) -> dict:
         return {"error": f"GitHub API 에러: {e.response.status_code}"}
     except Exception as e:
         return {"error": f"동기화 실패: {str(e)}"}
+
+
+async def auto_sync_if_needed(db: AsyncSession, project_id: int) -> dict | None:
+    """페이지 로드 시 호출 — 쿨다운 내면 스킵, 아니면 커밋+이슈 동기화."""
+    now = datetime.now()
+    last = _last_auto_sync.get(project_id)
+    if last and (now - last).total_seconds() < AUTO_SYNC_COOLDOWN_SEC:
+        return None  # 쿨다운 중
+
+    # GitHub 연동 가능 여부 체크
+    ready = await check_github_ready(db, project_id)
+    if not ready.get("ready"):
+        return None
+
+    _last_auto_sync[project_id] = now
+
+    try:
+        commits_result = await sync_commits(db, project_id, days=7)
+        issues_result = await sync_issues(db, project_id)
+        logger.info(f"GitHub 자동 동기화 완료: project={project_id}, commits={commits_result}, issues={issues_result}")
+        return {"commits": commits_result, "issues": issues_result}
+    except Exception as e:
+        logger.warning(f"GitHub 자동 동기화 실패: project={project_id}, error={e}")
+        return {"error": str(e)}

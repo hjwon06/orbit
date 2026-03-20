@@ -482,6 +482,10 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
     )
     costs_total = costs_total_result.scalar() or 0
 
+    # GitHub 자동 동기화 (10분 쿨다운)
+    from app.services.github_service import auto_sync_if_needed
+    github_sync = await auto_sync_if_needed(db, pid)
+
     summary = {
         "ms_total": ms_total,
         "ms_done": ms_done,
@@ -496,6 +500,7 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
         "agents_running": agents_running,
         "sessions_total": sessions_total,
         "costs_total": costs_total,
+        "github_synced": github_sync is not None,
     }
 
     return templates.TemplateResponse("project_detail.html", {
@@ -581,6 +586,9 @@ async def timeline_page(request: Request, slug: str, db: AsyncSession = Depends(
             "status": m.status, "start_date": m.start_date.isoformat(),
             "end_date": m.end_date.isoformat(), "sort_order": m.sort_order,
             "color": m.color, "source": m.source,
+            "todo_total": getattr(m, 'todo_total', 0),
+            "todo_done": getattr(m, 'todo_done', 0),
+            "todo_pct": getattr(m, 'todo_pct', 0),
         }
         for m in milestones
     ], default=_json_serial)
@@ -631,6 +639,10 @@ async def logs_page(request: Request, slug: str, db: AsyncSession = Depends(get_
     if not project:
         from fastapi.exceptions import HTTPException
         raise HTTPException(status_code=404)
+    # GitHub 자동 동기화 (10분 쿨다운)
+    from app.services.github_service import auto_sync_if_needed
+    await auto_sync_if_needed(db, project.id)
+
     work_logs = await get_work_logs_by_project(db, project.id)
     commit_stats = await get_commit_stats_by_project(db, project.id)
     work_logs_json = json.dumps([
@@ -687,21 +699,29 @@ async def todos_page(request: Request, slug: str, db: AsyncSession = Depends(get
         from fastapi.exceptions import HTTPException
         raise HTTPException(status_code=404)
     todos = await get_todos_by_project(db, project.id)
+    from app.services.milestone_service import get_milestones_by_project
+    milestones = await get_milestones_by_project(db, project.id)
     todos_json = json.dumps([
         {
             "id": t.id, "project_id": t.project_id, "title": t.title,
             "description": t.description or "", "priority": t.priority,
             "status": t.status, "source": t.source,
+            "milestone_id": t.milestone_id,
             "github_issue_url": t.github_issue_url,
             "ai_reasoning": t.ai_reasoning or "",
             "completed_at": t.completed_at.isoformat() if t.completed_at else None,
         }
         for t in todos
     ], default=_json_serial)
+    milestones_json = json.dumps([
+        {"id": m.id, "title": m.title, "status": m.status}
+        for m in milestones
+    ], default=_json_serial)
     return templates.TemplateResponse("todos.html", {
         "request": request,
         "project": project,
         "todos_json": todos_json,
+        "milestones_json": milestones_json,
         "page_title": f"{project.name} — AI 할일",
     })
 
