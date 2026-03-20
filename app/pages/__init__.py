@@ -300,6 +300,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     # 에이전트 실행: 최근 5건
     recent_runs_result = await db.execute(
         select(AgentRun).join(Agent, AgentRun.agent_id == Agent.id)
+        .where(Agent.deleted_at.is_(None))
         .order_by(AgentRun.started_at.desc()).limit(5)
     )
     for r in recent_runs_result.scalars().all():
