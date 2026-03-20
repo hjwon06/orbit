@@ -78,6 +78,12 @@ ob_sql_history  ← S7 (SQL 쿼리 실행 이력)
 **원인**: env.py에서 sync URL(`sslmode=require`)을 asyncpg URL로 변환할 때 asyncpg는 `ssl=require`만 인식.
 **해결**: `.replace("sslmode=", "ssl=")` 추가.
 
+### 9. Windows Python Hook stdin 인코딩 깨짐
+**증상**: Claude Code Hook 스크립트(`orbit_agent_start.py`)에서 한글 포함된 description 처리 시 `UnicodeEncodeError: surrogates not allowed`.
+**원인**: Windows `sys.stdin`이 기본 cp949로 디코딩 → UTF-8 한글이 서로게이트 문자(`\udcec`)로 깨짐.
+**해결**: `json.load(sys.stdin)` → `json.loads(sys.stdin.buffer.read().decode("utf-8"))` (start/finish 양쪽).
+**적용 범위**: Windows에서 Claude Code Hook으로 Python 스크립트를 실행할 때 한글 입력이 있으면 항상 `sys.stdin.buffer` 사용 필수.
+
 ### 8. Alpine.js + defer 로딩 순서
 **패턴**: `base.html`에서 `<script defer>` 로 Alpine.js 로드 → 템플릿의 `{% block scripts %}`에서 `alpine:init` 이벤트 리스너로 컴포넌트 등록 → 정상 동작.
 **주의**: Alpine.js보다 먼저 `x-data`에서 사용할 전역 변수(`window.__milestones` 등)를 선언해야 함.
@@ -118,6 +124,7 @@ ob_sql_history  ← S7 (SQL 쿼리 실행 이력)
 | 스키마 보강 | TodoUpdate +ai_reasoning/source, AgentUpdate +agent_name | API로 수정 가능 필드 확대 |
 | 미사용 테이블 제거 | ob_deployments, ob_db_migrations, ob_server_snapshots DROP | 데이터 0건 + 코드 미사용, 필요 시 재생성 |
 | 에이전트 오케스트레이터 | AuthMiddleware 로컬 면제 + lookup API | Claude Code → ORBIT 에이전트 모니터 자동 연동 |
+| Hook stdin 인코딩 | sys.stdin.buffer + UTF-8 decode | Windows cp949 기본값 회피, 한글 서로게이트 방지 |
 | 사이드바 비활성화 | Jinja2 조건부 렌더링 (alert → cursor-not-allowed) | 프로젝트 미선택 시 메뉴 비활성화 |
 | 모듈 카드 아이콘 | SVG 아이콘 6개 (사이드바와 동일) | 스캔가능성 향상 |
 | 비용 필터 | showActiveOnly 토글 + filteredCosts | 활성/전체 전환 |
