@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from sqlalchemy import select, update, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Milestone, Todo
@@ -78,3 +78,80 @@ async def delete_milestone(db: AsyncSession, milestone_id: int) -> bool:
     )
     await db.commit()
     return result.rowcount > 0
+
+
+async def ensure_weekly_milestone(db: AsyncSession, project_id: int) -> dict:
+    """주간 마일스톤 자동 관리: 현재 주 생성 + 만료 완료 + 미완료 이월."""
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())  # 이번 주 월요일
+    sunday = monday + timedelta(days=6)
+    iso_week = today.isocalendar()[1]
+    title = f"W{iso_week} ({monday.strftime('%m/%d')}~{sunday.strftime('%m/%d')})"
+
+    # 1. 현재 주 마일스톤 조회 or 생성
+    existing = await db.execute(
+        select(Milestone).where(
+            Milestone.project_id == project_id,
+            Milestone.deleted_at.is_(None),
+            Milestone.source == "weekly",
+            Milestone.start_date == monday,
+        )
+    )
+    current_ms = existing.scalar_one_or_none()
+    created_new = False
+
+    if not current_ms:
+        current_ms = Milestone(
+            project_id=project_id,
+            title=title,
+            status="active",
+            start_date=monday,
+            end_date=sunday,
+            source="weekly",
+            sort_order=9000 + iso_week,
+        )
+        db.add(current_ms)
+        await db.flush()  # id 확보
+        created_new = True
+
+    # 2. 만료된 weekly 마일스톤 조회 (end_date < today)
+    expired_result = await db.execute(
+        select(Milestone).where(
+            Milestone.project_id == project_id,
+            Milestone.deleted_at.is_(None),
+            Milestone.source == "weekly",
+            Milestone.status.in_(["active", "planned"]),
+            Milestone.end_date < today,
+        )
+    )
+    expired = expired_result.scalars().all()
+    expired_ids = [m.id for m in expired]
+
+    # 3. 만료 마일스톤의 open 할일 → 현재 주로 이월
+    carried = 0
+    if expired_ids:
+        carry_result = await db.execute(
+            update(Todo).where(
+                Todo.milestone_id.in_(expired_ids),
+                Todo.status == "open",
+                Todo.deleted_at.is_(None),
+            ).values(milestone_id=current_ms.id)
+        )
+        carried = carry_result.rowcount
+
+        # 만료 마일스톤 done 처리
+        await db.execute(
+            update(Milestone).where(
+                Milestone.id.in_(expired_ids)
+            ).values(status="done")
+        )
+
+    await db.commit()
+
+    return {
+        "weekly_milestone_id": current_ms.id,
+        "weekly_milestone_title": title,
+        "created_new": created_new,
+        "expired_count": len(expired_ids),
+        "carried_count": carried,
+    }

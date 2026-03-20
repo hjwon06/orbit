@@ -266,6 +266,10 @@ async def auto_sync_diary_if_needed(
     _last_diary_sync[project_id] = now
 
     try:
+        # 주간 마일스톤 자동 관리
+        from app.services.milestone_service import ensure_weekly_milestone
+        await ensure_weekly_milestone(db, project_id)
+
         # 최근 3일 다이어리 파싱
         diary_entries = parse_recent_diaries(diary_dir, days=3)
         if not diary_entries:
