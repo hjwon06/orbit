@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import select, update, delete
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Project
 from app.schemas.project import ProjectCreate, ProjectUpdate

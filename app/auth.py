@@ -1,6 +1,6 @@
 """세션 쿠키 기반 인증 — 단일 관리자."""
 from fastapi import Request, HTTPException
-from fastapi.responses import RedirectResponse
+
 from itsdangerous import URLSafeTimedSerializer, BadSignature, SignatureExpired
 from app.config import get_settings
 

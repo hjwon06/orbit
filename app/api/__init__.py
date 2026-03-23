@@ -9,6 +9,8 @@ from app.api.infra_costs import router as infra_costs_router
 from app.api.todos import router as todos_router
 from app.api.github import router as github_router
 from app.api.infra import router as infra_router
+from app.api.cloud_costs import router as cloud_costs_router
+from app.api.repo_score import router as repo_score_router
 
 api_router = APIRouter()
 api_router.include_router(projects_router)
@@ -21,3 +23,5 @@ api_router.include_router(infra_costs_router)
 api_router.include_router(todos_router)
 api_router.include_router(github_router)
 api_router.include_router(infra_router)
+api_router.include_router(cloud_costs_router)
+api_router.include_router(repo_score_router)

@@ -4,7 +4,7 @@ from app.database import get_db
 from app.schemas.todo import TodoCreate, TodoUpdate, TodoResponse
 from app.services.todo_service import (
     get_todos_by_project, create_todo, update_todo, delete_todo,
-    ai_recommend_todos, reprioritize_todos,
+    ai_recommend_todos,
 )
 
 router = APIRouter(prefix="/api/todos", tags=["todos"])

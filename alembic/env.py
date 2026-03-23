@@ -16,8 +16,8 @@ db_url_sync = os.environ.get(
     config.get_main_option("sqlalchemy.url"),
 )
 
-from app.database import Base
-from app.models import Project, Agent, AgentRun, Milestone, Session, WorkLog, CommitStat, InfraCost, Todo, SqlHistory  # noqa: F401
+from app.database import Base  # noqa: E402
+from app.models import Project, Agent, AgentRun, Milestone, Session, WorkLog, CommitStat, InfraCost, Todo, SqlHistory  # noqa: E402, F401
 
 target_metadata = Base.metadata
 
@@ -40,7 +40,7 @@ def do_run_migrations(connection: Connection) -> None:
 
 
 async def run_async_migrations() -> None:
-    async_url = db_url_sync.replace("postgresql://", "postgresql+asyncpg://").replace("sslmode=", "ssl=")
+    async_url = (db_url_sync or "").replace("postgresql://", "postgresql+asyncpg://").replace("sslmode=", "ssl=")
     connectable = async_engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",

@@ -23,6 +23,7 @@
 | S10 | 에이전트 오케스트레이터 + UI 다듬기 (사이드바, 아이콘, 필터, 활동시간, 드롭다운) | done |
 | S11 | Glass 디자인 + AI 고도화 (주간 요약, 우선순위 재정렬, 진행률 바) | done |
 | S12 | 고도화 (GraphQL 전환, soft delete 정리, 다이어리 동기화, 마일스톤 진행률) | done |
+| S13 | 서버 비용 대시보드 (AWS CE + Vultr API 실시간 조회) | done |
 
 ---
 
@@ -154,6 +155,10 @@ ob_sql_history  ← S7 (SQL 쿼리 실행 이력)
 | 세션 실시간 타이머 | Alpine.js liveTimer() HH:MM:SS | 1초 갱신, _tick reactive, running 세션만 |
 | 다이어리 동기화 | 옵시디언 → 할일 자동 생성/완료 | "내일 할 일"→생성, "오늘 한 일"→GPT 매칭 완료, 1시간 쿨다운 |
 | AI 마일스톤 배정 | GPT 프롬프트에 ms ID 포함 + valid_ms_ids 검증 | fallback에서도 m.id 자동 배정 |
+| 주간 마일스톤 | W{주차} 자동 생성 + 만료 done + 미완료 이월 | source="weekly", 월요일 기준 |
+| 다이어리→할일 동기화 | 옵시디언 파싱 → Todo 생성/완료 | diary_ref unique, GPT-4o 매칭, 1시간 쿨다운 |
+| project.yaml DB 저장 | Hook에서 PATCH API로 자동 저장 | ob_projects.project_yaml 컬럼 (Alembic 013) |
+| 서버 총비용 대시보드 | AWS CE boto3 + Vultr API v2 httpx | 10분 메모리 캐시, 키 미설정 시 graceful skip, /server-costs |
 
 ---
 

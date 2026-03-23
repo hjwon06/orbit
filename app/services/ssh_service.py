@@ -6,10 +6,22 @@ from app.config import get_settings
 
 settings = get_settings()
 
-RDS_HOST = "giniz-db.cbyc4yk4c3iq.ap-northeast-2.rds.amazonaws.com"
-RDS_USER = "giniz_master"
-RDS_PASS = "Giniz0228!#$"
+RDS_HOST = settings.rds_host or ""
+RDS_USER = settings.rds_master_user or "giniz_master"
+RDS_PASS = settings.rds_master_password or ""
 RDS_DB = "postgres"
+
+# 특수 비밀번호 (규칙에 안 맞는 유저만 등록)
+_RDS_PASSWORDS_OVERRIDE = {
+    RDS_USER: RDS_PASS,
+}
+
+
+def _get_rds_password(user: str) -> str:
+    """유저별 비밀번호 자동 생성. 규칙: {Name}!2026 (예: jay → Jay!2026)"""
+    if user in _RDS_PASSWORDS_OVERRIDE:
+        return _RDS_PASSWORDS_OVERRIDE[user]
+    return f"{user.capitalize()}!2026"
 
 BLOCKED_COMMANDS = [
     re.compile(r"\brm\s+-rf\s+/\b", re.IGNORECASE),
@@ -52,11 +64,37 @@ def _run_ssh(remote_command: str, timeout_sec: int = 30) -> dict:
         return {"output": "", "error": str(e), "duration_ms": duration_ms, "exit_code": -1}
 
 
+def _inject_pgpassword(command: str) -> str:
+    """psql 명령어 감지 시 PGPASSWORD + 기본 유저 자동 주입."""
+    if "psql" not in command:
+        return command
+    # 이미 PGPASSWORD가 있으면 스킵
+    if "PGPASSWORD" in command:
+        return command
+
+    # psql 부분만 추출해서 처리 (cd ... && psql ... 대응)
+    parts = command.rsplit("psql", 1)
+    prefix = parts[0]  # "cd /home/ubuntu && " 또는 ""
+    psql_part = "psql" + parts[1]  # "psql -h ... -d ..."
+
+    # -U 없으면 giniz_master 자동 추가
+    if not re.search(r"-U\s+\S+", psql_part):
+        psql_part = psql_part.replace("psql ", f"psql -U {RDS_USER} ", 1)
+
+    # -U 옵션에서 유저명 추출
+    user_match = re.search(r"-U\s+(\S+)", psql_part)
+    user = user_match.group(1) if user_match else RDS_USER
+    password = _get_rds_password(user)
+
+    return f"{prefix}PGPASSWORD='{password}' {psql_part}"
+
+
 def execute_ssh_command(command: str, timeout_sec: int = 30) -> dict:
     """Execute a shell command on EC2."""
     for pattern in BLOCKED_COMMANDS:
         if pattern.search(command):
             return {"output": "", "error": f"Blocked: dangerous command ({pattern.pattern})", "duration_ms": 0, "exit_code": -1}
+    command = _inject_pgpassword(command)
     return _run_ssh(command, timeout_sec)
 
 

@@ -66,8 +66,11 @@ def get_table_info(db_alias: str, table_name: str) -> dict:
             for c in inspector.get_columns(table_name)
         ]
         with engine.connect() as conn:
-            row_count = conn.execute(text(f'SELECT COUNT(*) FROM "{table_name}"')).scalar()
-            size = conn.execute(text(f"SELECT pg_relation_size('{table_name}')")).scalar()
+            # 테이블명 검증 (영숫자+언더스코어만 허용)
+            if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', table_name):
+                return {"name": table_name, "row_count": 0, "size_kb": 0, "columns": columns, "error": "Invalid table name"}
+            row_count = conn.execute(text(f'SELECT COUNT(*) FROM "{table_name}"')).scalar()  # nosec B608 # noqa: S608 - table_name validated by regex above
+            size = conn.execute(text(f"SELECT pg_relation_size('{table_name}')")).scalar()  # nosec B608 # noqa: S608
         return {"name": table_name, "row_count": row_count or 0, "size_kb": round((size or 0) / 1024, 2), "columns": columns}
     except Exception as e:
         return {"name": table_name, "row_count": 0, "size_kb": 0, "columns": [], "error": str(e)}
@@ -157,7 +160,7 @@ async def get_sql_history(db: AsyncSession, db_alias: str | None = None, limit: 
         if db_alias:
             stmt = stmt.where(SqlHistory.db_alias == db_alias)
         result = await db.execute(stmt)
-        return result.scalars().all()
+        return list(result.scalars().all())
     except Exception:
         return []
 

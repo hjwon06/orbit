@@ -1,5 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float, Boolean, Numeric, ForeignKey, func
-from sqlalchemy.dialects.postgresql import JSON
+from sqlalchemy import Column, Integer, String, Text, DateTime, Date, Float, Boolean, ForeignKey, func
 from sqlalchemy.orm import relationship
 from app.database import Base
 
@@ -194,6 +193,23 @@ class Todo(Base):
     def __repr__(self):
         return f"<Todo {self.title}:{self.status}>"
 
+
+
+class RepoScore(Base):
+    __tablename__ = "ob_repo_scores"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False, unique=True)
+    total_score = Column(Integer, default=0)
+    grade = Column(String(2), default="F")
+    categories_json = Column(Text, default="[]")
+    gpt_review = Column(Text, nullable=True)
+    evaluated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    project = relationship("Project")
+
+    def __repr__(self):
+        return f"<RepoScore {self.project_id}:{self.grade}>"
 
 
 class SqlHistory(Base):

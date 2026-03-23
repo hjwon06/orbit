@@ -18,6 +18,9 @@ services:
       ORBIT_SSH_KEY_PATH: /tmp/giniz-key.pem
       ORBIT_SSH_HOST: 15.164.25.18
       ORBIT_SSH_USER: ubuntu
+      ORBIT_RDS_HOST: giniz-db.cbyc4yk4c3iq.ap-northeast-2.rds.amazonaws.com
+      ORBIT_RDS_MASTER_USER: giniz_master
+      ORBIT_RDS_MASTER_PASSWORD: ${RDS_MASTER_PASSWORD:-}
     volumes:
       - ./app:/app/app
       - ./seed.py:/app/seed.py

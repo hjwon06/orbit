@@ -61,8 +61,8 @@ async def check_github_ready(db: AsyncSession, project_id: int) -> dict:
     return {
         "token_set": headers is not None,
         "repo_url": project.repo_url if project else "",
-        "repo_parsed": _parse_repo(project.repo_url) is not None if project else False,
-        "ready": headers is not None and project is not None and _parse_repo(project.repo_url) is not None,
+        "repo_parsed": _parse_repo(str(project.repo_url)) is not None if project else False,
+        "ready": headers is not None and project is not None and _parse_repo(str(project.repo_url)) is not None,
     }
 
 
@@ -237,7 +237,7 @@ async def sync_commits(db: AsyncSession, project_id: int, days: int = 30) -> dic
     if not project:
         return {"error": "프로젝트를 찾을 수 없습니다."}
 
-    parsed = _parse_repo(project.repo_url)
+    parsed = _parse_repo(str(project.repo_url))
     if not parsed:
         return {"error": f"repo_url을 파싱할 수 없습니다: {project.repo_url}"}
 
@@ -281,7 +281,7 @@ async def sync_issues(db: AsyncSession, project_id: int) -> dict:
     if not project:
         return {"error": "프로젝트를 찾을 수 없습니다."}
 
-    parsed = _parse_repo(project.repo_url)
+    parsed = _parse_repo(str(project.repo_url))
     if not parsed:
         return {"error": f"repo_url을 파싱할 수 없습니다: {project.repo_url}"}
 

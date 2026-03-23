@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, Any
+from typing import Any
 
 
 # ── DB Admin ──────────────────────────────────────────────

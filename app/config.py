@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     ssh_host: str = ""
     ssh_user: str = "ubuntu"
 
+    rds_host: str = ""
+    rds_master_user: str = "giniz_master"
+    rds_master_password: str = ""
+
     def get_managed_dbs(self) -> list[dict]:
         import json
         return json.loads(self.managed_databases)
@@ -46,6 +50,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         env_prefix = "ORBIT_"
+        extra = "ignore"
 
 
 @lru_cache

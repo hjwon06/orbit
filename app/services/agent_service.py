@@ -112,7 +112,7 @@ async def sync_agents(db: AsyncSession, project_id: int, data: AgentSyncRequest)
     # 1. 기존 에이전트 목록 조회 (deleted_at IS NULL)
     stmt = select(Agent).where(Agent.project_id == project_id, Agent.deleted_at.is_(None))
     result = await db.execute(stmt)
-    existing = {a.agent_code: a for a in result.scalars().all()}
+    existing: dict[str, Agent] = {str(a.agent_code): a for a in result.scalars().all()}
 
     requested_codes = {item.agent_code for item in data.agents}
     created = 0
@@ -124,8 +124,8 @@ async def sync_agents(db: AsyncSession, project_id: int, data: AgentSyncRequest)
         if item.agent_code in existing:
             # UPDATE
             agent = existing[item.agent_code]
-            agent.agent_name = item.agent_name
-            agent.model_tier = item.model_tier
+            agent.agent_name = item.agent_name  # type: ignore[assignment]
+            agent.model_tier = item.model_tier  # type: ignore[assignment]
             updated += 1
         else:
             # CREATE
@@ -141,7 +141,7 @@ async def sync_agents(db: AsyncSession, project_id: int, data: AgentSyncRequest)
     # 3. 요청에 없는 agent_code → soft DELETE
     for code, agent in existing.items():
         if code not in requested_codes:
-            agent.deleted_at = datetime.now(timezone.utc)
+            agent.deleted_at = datetime.now(timezone.utc)  # type: ignore[assignment]
             deleted += 1
 
     await db.commit()

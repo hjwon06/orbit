@@ -1,9 +1,14 @@
-from fastapi import FastAPI, Request, Form
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import RedirectResponse, HTMLResponse
-from fastapi.templating import Jinja2Templates
-from starlette.middleware.base import BaseHTTPMiddleware
+from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime as dt, timedelta, timezone as tz
+
+from fastapi import FastAPI, Request, Form
+from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
+from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.base import BaseHTTPMiddleware
+
 from app.config import get_settings
 from app.database import engine, Base
 from app.api import api_router
@@ -32,7 +37,6 @@ app = FastAPI(
 templates = Jinja2Templates(directory="app/templates")
 
 # KST 시간 표시 필터
-from datetime import timedelta, timezone as tz
 KST = tz(timedelta(hours=9))
 
 
@@ -97,9 +101,6 @@ async def login_page(request: Request):
 
 
 # Rate Limit (메모리 기반)
-from datetime import datetime as dt
-from collections import defaultdict
-
 _login_attempts: dict[str, list] = defaultdict(list)
 RATE_LIMIT_MAX = 5
 RATE_LIMIT_WINDOW = 900  # 15분
@@ -151,7 +152,6 @@ async def logout():
 
 
 # --- 에러 핸들러 ---
-from starlette.exceptions import HTTPException as StarletteHTTPException
 
 
 @app.exception_handler(404)

@@ -120,7 +120,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             sqlfunc.date(SessionModel.started_at) >= trend_start
         ).group_by(sqlfunc.date(SessionModel.started_at))
     )
-    daily_sessions_map = dict(daily_sessions_result.all())
+    daily_sessions_map: dict = dict(daily_sessions_result.all())  # type: ignore[arg-type]
 
     # 일별 커밋 수
     daily_commits_result = await db.execute(
@@ -131,7 +131,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             CommitStat.stat_date >= trend_start
         ).group_by(CommitStat.stat_date)
     )
-    daily_commits_map = dict(daily_commits_result.all())
+    daily_commits_map: dict = dict(daily_commits_result.all())  # type: ignore[arg-type]
 
     # 28일 배열 생성
     trend_labels = []
@@ -151,7 +151,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             Agent.deleted_at.is_(None),
         ).group_by(Agent.project_id)
     )
-    agents_by_proj = dict(agents_by_proj_result.all())
+    agents_by_proj: dict = dict(agents_by_proj_result.all())  # type: ignore[arg-type]
 
     # 마일스톤 수
     milestones_by_proj_result = await db.execute(
@@ -160,7 +160,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             Milestone.deleted_at.is_(None),
         ).group_by(Milestone.project_id)
     )
-    milestones_by_proj = dict(milestones_by_proj_result.all())
+    milestones_by_proj: dict = dict(milestones_by_proj_result.all())  # type: ignore[arg-type]
 
     # 마일스톤 done 수
     milestones_done_result = await db.execute(
@@ -170,7 +170,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             Milestone.status == "done",
         ).group_by(Milestone.project_id)
     )
-    milestones_done_by_proj = dict(milestones_done_result.all())
+    milestones_done_by_proj: dict = dict(milestones_done_result.all())  # type: ignore[arg-type]
 
     # 세션 수 (최근 7일)
     week_ago = today - timedelta(days=7)
@@ -181,7 +181,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             SessionModel.started_at >= week_ago,
         ).group_by(SessionModel.project_id)
     )
-    sessions_by_proj = dict(sessions_by_proj_result.all())
+    sessions_by_proj: dict = dict(sessions_by_proj_result.all())  # type: ignore[arg-type]
 
     # 커밋 수 (최근 7일)
     commits_by_proj_result = await db.execute(
@@ -193,7 +193,7 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             CommitStat.stat_date >= week_start,
         ).group_by(CommitStat.project_id)
     )
-    commits_by_proj = dict(commits_by_proj_result.all())
+    commits_by_proj: dict = dict(commits_by_proj_result.all())  # type: ignore[arg-type]
 
     # --- 프로젝트별 7일 스파크라인 ---
     spark_start = today - timedelta(days=6)
@@ -243,14 +243,14 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             SessionModel.deleted_at.is_(None),
         ).group_by(SessionModel.project_id)
     )
-    last_session_map = dict(last_session_result.all())
+    last_session_map: dict = dict(last_session_result.all())  # type: ignore[arg-type]
 
     last_commit_result = await db.execute(
         select(CommitStat.project_id, sqlfunc.max(CommitStat.created_at)).where(
             CommitStat.project_id.in_(project_ids)
         ).group_by(CommitStat.project_id)
     )
-    last_commit_map = dict(last_commit_result.all())
+    last_commit_map: dict = dict(last_commit_result.all())  # type: ignore[arg-type]
 
     project_stats = {
         pid: {
@@ -737,6 +737,52 @@ async def todos_page(request: Request, slug: str, db: AsyncSession = Depends(get
         "todos_json": todos_json,
         "milestones_json": milestones_json,
         "page_title": f"{project.name} — AI 할일",
+    })
+
+
+@router.get("/projects/{slug}/repo-score", response_class=HTMLResponse)
+async def repo_score_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    from app.services.github_service import check_github_ready
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    github_status = await check_github_ready(db, project.id)
+    return templates.TemplateResponse("repo_score.html", {
+        "request": request,
+        "project": project,
+        "github_ready": "true" if github_status.get("ready") else "false",
+        "page_title": f"{project.name} — 레포 품질",
+    })
+
+
+@router.get("/server-costs", response_class=HTMLResponse)
+async def server_costs_page(request: Request, db: AsyncSession = Depends(get_db)):
+    from sqlalchemy import select, func as sqlfunc
+    from app.models import InfraCost
+
+    # 수동 등록 비용 전체 합산 (monthly + yearly/12)
+    monthly_result = await db.execute(
+        select(sqlfunc.coalesce(sqlfunc.sum(InfraCost.cost_usd), 0)).where(
+            InfraCost.is_active == True, InfraCost.billing_cycle == "monthly"  # noqa: E712
+        )
+    )
+    monthly = monthly_result.scalar() or 0
+
+    yearly_result = await db.execute(
+        select(sqlfunc.coalesce(sqlfunc.sum(InfraCost.cost_usd), 0)).where(
+            InfraCost.is_active == True, InfraCost.billing_cycle == "yearly"  # noqa: E712
+        )
+    )
+    yearly = yearly_result.scalar() or 0
+
+    manual_total = round(monthly + yearly / 12, 2)
+
+    return templates.TemplateResponse("server_costs.html", {
+        "request": request,
+        "page_title": "서버 비용",
+        "manual_total": manual_total,
     })
 
 

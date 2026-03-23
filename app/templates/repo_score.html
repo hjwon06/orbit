@@ -1,0 +1,186 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div x-data="repoScorePage()" x-init="fetchScore()" x-cloak>
+    <!-- 헤더 -->
+    <div class="flex items-center justify-between mb-6">
+        <div>
+            <h2 class="text-xl font-extrabold text-gray-900">{{ project.name }} — 레포 품질</h2>
+            <p class="text-sm text-muted mt-0.5">GitHub 레포지토리 품질 평가 (100점 만점)</p>
+        </div>
+        <button @click="evaluate()" :disabled="loading"
+                class="flex items-center gap-1.5 px-4 py-2 bg-accent text-white text-sm font-semibold rounded-2xl hover:bg-accent-dark transition-all shadow-sm disabled:opacity-50">
+            <svg class="w-4 h-4" :class="loading && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+            </svg>
+            <span x-text="loading ? '평가 중...' : '평가 실행'"></span>
+        </button>
+    </div>
+
+    <!-- 로딩 -->
+    <template x-if="loading && !data">
+        <div class="flex items-center justify-center py-20">
+            <div class="animate-spin w-8 h-8 border-4 border-accent border-t-transparent rounded-full"></div>
+        </div>
+    </template>
+
+    <!-- GitHub 미연동 -->
+    <template x-if="!githubReady && !loading">
+        <div class="glass rounded-2xl p-6 text-center">
+            <p class="text-muted mb-2">GitHub 레포가 연동되지 않았습니다.</p>
+            <p class="text-sm text-muted">프로젝트에 repo_url과 GitHub 토큰을 설정해주세요.</p>
+        </div>
+    </template>
+
+    <!-- 데이터 -->
+    <template x-if="data && githubReady">
+        <div>
+            <!-- 총점 + 등급 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+                <div class="glass rounded-2xl p-6 flex items-center justify-center">
+                    <div class="text-center">
+                        <div class="relative w-32 h-32 mx-auto mb-3">
+                            <canvas id="scoreGauge" width="128" height="128"></canvas>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <span class="text-3xl font-extrabold text-gray-900" x-text="data.total_score"></span>
+                            </div>
+                        </div>
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-bold"
+                             :class="gradeColor(data.grade)">
+                            <span x-text="'등급 ' + data.grade"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 카테고리별 요약 -->
+                <div class="lg:col-span-2 glass rounded-2xl p-5">
+                    <h3 class="text-base font-extrabold text-gray-900 mb-4">항목별 점수</h3>
+                    <div class="space-y-3">
+                        <template x-for="cat in data.categories" :key="cat.item">
+                            <div>
+                                <div class="flex items-center justify-between mb-1">
+                                    <div class="flex items-center gap-2">
+                                        <span class="text-xs px-1.5 py-0.5 rounded bg-black/5 text-muted" x-text="cat.category"></span>
+                                        <span class="text-sm font-semibold text-gray-900" x-text="cat.item"></span>
+                                    </div>
+                                    <span class="text-sm font-bold" :class="cat.score >= cat.max_score * 0.7 ? 'text-success' : cat.score >= cat.max_score * 0.4 ? 'text-warning' : 'text-danger'"
+                                          x-text="cat.score + '/' + cat.max_score"></span>
+                                </div>
+                                <div class="w-full bg-black/5 rounded-full h-2">
+                                    <div class="h-2 rounded-full transition-all duration-500"
+                                         :class="cat.score >= cat.max_score * 0.7 ? 'bg-success' : cat.score >= cat.max_score * 0.4 ? 'bg-warning' : 'bg-danger'"
+                                         :style="'width: ' + (cat.max_score > 0 ? (cat.score / cat.max_score * 100) : 0) + '%'"></div>
+                                </div>
+                                <p class="text-xs text-muted mt-0.5" x-text="cat.detail"></p>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GPT 리뷰 -->
+            <template x-if="data.gpt_review && data.gpt_review.length > 10">
+                <div class="glass rounded-2xl p-5 mb-6">
+                    <h3 class="text-base font-extrabold text-gray-900 mb-2">GPT 코드 리뷰</h3>
+                    <p class="text-sm text-gray-600 whitespace-pre-line" x-text="data.gpt_review"></p>
+                </div>
+            </template>
+
+            <!-- 마지막 평가 시간 -->
+            <p class="text-xs text-muted text-right" x-text="'마지막 평가: ' + new Date(data.evaluated_at).toLocaleString('ko-KR')"></p>
+        </div>
+    </template>
+
+    <!-- 에러 -->
+    <template x-if="error && !loading">
+        <div class="glass rounded-2xl p-6 text-center">
+            <p class="text-danger font-semibold mb-2" x-text="error"></p>
+            <button @click="evaluate()" class="text-sm text-accent hover:underline">평가 실행</button>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function repoScorePage() {
+    return {
+        loading: false,
+        data: null,
+        error: null,
+        githubReady: {{ github_ready|default('true')|lower }},
+        projectId: {{ project.id }},
+
+        async fetchScore() {
+            if (!this.githubReady) return;
+            try {
+                const resp = await fetch(`/api/repo-score/${this.projectId}`);
+                const result = await resp.json();
+                if (result.total_score !== null && result.total_score !== undefined) {
+                    this.data = result;
+                    this.$nextTick(() => this.drawGauge());
+                }
+            } catch (e) { /* no cached score */ }
+        },
+
+        async evaluate() {
+            this.loading = true;
+            this.error = null;
+            try {
+                const resp = await fetch(`/api/repo-score/${this.projectId}/evaluate`, { method: 'POST' });
+                const result = await resp.json();
+                if (result.error) {
+                    this.error = result.error;
+                } else {
+                    this.data = result;
+                    this.$nextTick(() => this.drawGauge());
+                }
+            } catch (e) {
+                this.error = e.message;
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        drawGauge() {
+            const canvas = document.getElementById('scoreGauge');
+            if (!canvas || !this.data) return;
+            const existing = Chart.getChart(canvas);
+            if (existing) existing.destroy();
+            const score = this.data.total_score;
+            new Chart(canvas, {
+                type: 'doughnut',
+                data: {
+                    datasets: [{
+                        data: [score, 100 - score],
+                        backgroundColor: [
+                            score >= 80 ? '#22C55E' : score >= 60 ? '#F59E0B' : '#EF4444',
+                            'rgba(0,0,0,0.05)'
+                        ],
+                        borderWidth: 0,
+                    }]
+                },
+                options: {
+                    cutout: '75%',
+                    responsive: false,
+                    plugins: { legend: { display: false }, tooltip: { enabled: false } },
+                    animation: { animateRotate: true, duration: 800 },
+                },
+            });
+        },
+
+        gradeColor(grade) {
+            const colors = {
+                'S': 'bg-accent text-white',
+                'A': 'bg-success-light text-success',
+                'B': 'bg-accent-light text-accent',
+                'C': 'bg-warning-light text-warning',
+                'D': 'bg-danger-light text-danger',
+                'F': 'bg-danger text-white',
+            };
+            return colors[grade] || 'bg-black/5 text-muted';
+        },
+    };
+}
+</script>
+{% endblock %}

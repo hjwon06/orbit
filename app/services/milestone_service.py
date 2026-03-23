@@ -29,8 +29,8 @@ async def get_milestones_by_project(db: AsyncSession, project_id: int):
         )
         total_result = await db.execute(total_stmt)
         done_result = await db.execute(done_stmt)
-        totals = dict(total_result.all())
-        dones = dict(done_result.all())
+        totals: dict = dict(total_result.all())  # type: ignore[arg-type]
+        dones: dict = dict(done_result.all())  # type: ignore[arg-type]
 
         for m in milestones:
             m.todo_total = totals.get(m.id, 0)  # type: ignore[attr-defined]
