@@ -10,7 +10,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models import Project, CommitStat, Todo
+from app.models import Project, CommitStat
 from app.config import get_settings
 
 logger = logging.getLogger(__name__)
@@ -277,69 +277,8 @@ async def sync_commits(db: AsyncSession, project_id: int, days: int = 30) -> dic
 
 
 async def sync_issues(db: AsyncSession, project_id: int) -> dict:
-    """GitHub 이슈 → todos 동기화."""
-    headers = _get_headers()
-    if not headers:
-        return {"error": "ORBIT_GITHUB_TOKEN이 설정되지 않았습니다."}
-
-    result = await db.execute(select(Project).where(Project.id == project_id))
-    project = result.scalar_one_or_none()
-    if not project:
-        return {"error": "프로젝트를 찾을 수 없습니다."}
-
-    parsed = _parse_repo(str(project.repo_url))
-    if not parsed:
-        return {"error": f"repo_url을 파싱할 수 없습니다: {project.repo_url}"}
-
-    owner, repo = parsed
-
-    try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.get(
-                f"{GITHUB_API}/repos/{owner}/{repo}/issues",
-                headers=headers,
-                params={"state": "open", "per_page": 50},
-            )
-            resp.raise_for_status()
-            issues = resp.json()
-
-            created = 0
-            skipped = 0
-            for issue in issues:
-                if issue.get("pull_request"):
-                    continue
-
-                issue_url = issue["html_url"]
-                existing = await db.execute(
-                    select(Todo).where(
-                        Todo.project_id == project_id,
-                        Todo.github_issue_url == issue_url,
-                    )
-                )
-                if existing.scalar_one_or_none():
-                    skipped += 1
-                    continue
-
-                labels = [lb["name"] for lb in issue.get("labels", [])]
-                priority = "high" if "bug" in labels or "urgent" in labels else "medium"
-
-                db.add(Todo(
-                    project_id=project_id,
-                    title=f"#{issue['number']} {issue['title']}",
-                    description=issue.get("body", "")[:500] or "",
-                    priority=priority,
-                    source="github",
-                    github_issue_url=issue_url,
-                ))
-                created += 1
-
-            await db.commit()
-            return {"ok": True, "created": created, "skipped": skipped, "repo": f"{owner}/{repo}"}
-
-    except httpx.HTTPStatusError as e:
-        return {"error": f"GitHub API 에러: {e.response.status_code}"}
-    except Exception as e:
-        return {"error": f"동기화 실패: {str(e)}"}
+    """GitHub 이슈 동기화 — Todo 기능 제거로 비활성화."""
+    return {"ok": True, "created": 0, "skipped": 0, "message": "Todo 기능이 제거되어 이슈 동기화가 비활성화되었습니다."}
 
 
 async def get_branch_commits(

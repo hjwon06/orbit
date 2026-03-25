@@ -44,10 +44,6 @@
             <p class="text-[11px] text-warning">월 비용</p>
             <p class="text-xl font-semibold">${{ stats.monthly_cost }}</p>
         </div>
-        <div class="bg-card border border-border rounded-2xl p-3">
-            <p class="text-[11px] text-danger">열린 TODO</p>
-            <p class="text-xl font-semibold {% if stats.open_todos > 0 %}text-danger{% else %}text-muted{% endif %}">{{ stats.open_todos }}</p>
-        </div>
     </div>
 
     <!-- Trend chart -->
@@ -150,12 +146,10 @@
                 <span class="text-[10px] px-1.5 py-0.5 rounded shrink-0
                     {% if act.type == 'session' %}bg-accent-light text-accent
                     {% elif act.type == 'agent_run' %}bg-success-light text-success
-                    {% elif act.type == 'todo' %}bg-warning-light text-warning
                     {% elif act.type == 'commit' %}bg-surface text-muted border border-border
                     {% endif %}">
                     {% if act.type == 'session' %}세션
                     {% elif act.type == 'agent_run' %}에이전트
-                    {% elif act.type == 'todo' %}할일
                     {% elif act.type == 'commit' %}커밋
                     {% endif %}
                 </span>

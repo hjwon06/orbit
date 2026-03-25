@@ -1,7 +1,7 @@
 from datetime import date, datetime, timedelta, timezone
-from sqlalchemy import select, update, func as sqlfunc
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Milestone, Todo
+from app.models import Milestone
 from app.schemas.milestone import MilestoneCreate, MilestoneUpdate, MilestoneDatesUpdate
 
 
@@ -13,29 +13,6 @@ async def get_milestones_by_project(db: AsyncSession, project_id: int):
     )
     result = await db.execute(stmt)
     milestones = result.scalars().all()
-
-    # 마일스톤별 할일 진행률 계산
-    if milestones:
-        ms_ids = [m.id for m in milestones]
-        total_stmt = (
-            select(Todo.milestone_id, sqlfunc.count())
-            .where(Todo.milestone_id.in_(ms_ids), Todo.deleted_at.is_(None))
-            .group_by(Todo.milestone_id)
-        )
-        done_stmt = (
-            select(Todo.milestone_id, sqlfunc.count())
-            .where(Todo.milestone_id.in_(ms_ids), Todo.deleted_at.is_(None), Todo.status == "done")
-            .group_by(Todo.milestone_id)
-        )
-        total_result = await db.execute(total_stmt)
-        done_result = await db.execute(done_stmt)
-        totals: dict = dict(total_result.all())  # type: ignore[arg-type]
-        dones: dict = dict(done_result.all())  # type: ignore[arg-type]
-
-        for m in milestones:
-            m.todo_total = totals.get(m.id, 0)  # type: ignore[attr-defined]
-            m.todo_done = dones.get(m.id, 0)  # type: ignore[attr-defined]
-            m.todo_pct = round(m.todo_done / m.todo_total * 100) if m.todo_total > 0 else 0  # type: ignore[attr-defined]
 
     return milestones
 
@@ -127,19 +104,8 @@ async def ensure_weekly_milestone(db: AsyncSession, project_id: int) -> dict:
     expired = expired_result.scalars().all()
     expired_ids = [m.id for m in expired]
 
-    # 3. 만료 마일스톤의 open 할일 → 현재 주로 이월
-    carried = 0
+    # 3. 만료 마일스톤 done 처리
     if expired_ids:
-        carry_result = await db.execute(
-            update(Todo).where(
-                Todo.milestone_id.in_(expired_ids),
-                Todo.status == "open",
-                Todo.deleted_at.is_(None),
-            ).values(milestone_id=current_ms.id)
-        )
-        carried = carry_result.rowcount
-
-        # 만료 마일스톤 done 처리
         await db.execute(
             update(Milestone).where(
                 Milestone.id.in_(expired_ids)
@@ -153,5 +119,4 @@ async def ensure_weekly_milestone(db: AsyncSession, project_id: int) -> dict:
         "weekly_milestone_title": title,
         "created_new": created_new,
         "expired_count": len(expired_ids),
-        "carried_count": carried,
     }

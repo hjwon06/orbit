@@ -54,7 +54,7 @@ DAESIN_AGENTS = [
 async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
     from datetime import date, timedelta
     from sqlalchemy import select, func as sqlfunc
-    from app.models import Agent, AgentRun, Session as SessionModel, CommitStat, InfraCost, Todo, Milestone
+    from app.models import Agent, AgentRun, Session as SessionModel, CommitStat, InfraCost, Milestone
 
     projects = await get_projects(db, status="active")
     project_ids = [p.id for p in projects]
@@ -103,12 +103,6 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
         ).where(InfraCost.is_active == True, InfraCost.billing_cycle == "yearly")  # noqa: E712
     )
     monthly_cost = round(monthly_cost + (yearly_result.scalar() or 0) / 12, 2)
-
-    # 열린 TODO
-    open_todos_result = await db.execute(
-        select(sqlfunc.count()).select_from(Todo).where(Todo.deleted_at.is_(None), Todo.status == "open")
-    )
-    open_todos = open_todos_result.scalar() or 0
 
     # --- 28일 트렌드 데이터 ---
     trend_start = today - timedelta(days=27)
@@ -330,31 +324,6 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
                 "description": f"{agent.agent_code if agent else '?'} \"{r.task_name}\" 완료",
             })
 
-    # TODO: 최근 5건
-    recent_todos_result = await db.execute(
-        select(Todo).where(Todo.deleted_at.is_(None)).order_by(Todo.created_at.desc()).limit(5)
-    )
-    for t in recent_todos_result.scalars().all():
-        pname, pcolor = proj_map.get(t.project_id, ("Unknown", "#6b7280"))
-        if t.created_at:
-            recent_activities.append({
-                "timestamp": t.created_at,
-                "type": "todo",
-                "action": "created",
-                "project_color": pcolor,
-                "project_name": pname,
-                "description": f"할일 \"{t.title}\" 생성",
-            })
-        if t.completed_at:
-            recent_activities.append({
-                "timestamp": t.completed_at,
-                "type": "todo",
-                "action": "completed",
-                "project_color": pcolor,
-                "project_name": pname,
-                "description": f"할일 \"{t.title}\" 완료",
-            })
-
     # 커밋 통계: 최근 5건
     recent_commits_result = await db.execute(
         select(CommitStat).order_by(CommitStat.created_at.desc()).limit(5)
@@ -387,7 +356,6 @@ async def dashboard(request: Request, db: AsyncSession = Depends(get_db)):
             "sessions_today": sessions_today,
             "commits_week": commits_week,
             "monthly_cost": monthly_cost,
-            "open_todos": open_todos,
         },
         "trend_labels_json": json.dumps(trend_labels),
         "trend_sessions_json": json.dumps(trend_sessions),
@@ -409,7 +377,7 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
     from datetime import date as date_type, timedelta
     from sqlalchemy import select, func as sqlfunc
     from app.services import get_project_by_slug
-    from app.models import Milestone, Agent, Session as SessionModel, CommitStat, Todo
+    from app.models import Milestone, Agent, Session as SessionModel, CommitStat
 
     project = await get_project_by_slug(db, slug)
     if not project:
@@ -451,20 +419,6 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
         )
     )
     week_commits, week_add, week_del = week_commits_result.one()
-
-    # 열린 할일
-    open_todos_result = await db.execute(
-        select(sqlfunc.count()).select_from(Todo).where(
-            Todo.project_id == pid, Todo.deleted_at.is_(None), Todo.status == "open"
-        )
-    )
-    open_todos = open_todos_result.scalar() or 0
-    high_todos_result = await db.execute(
-        select(sqlfunc.count()).select_from(Todo).where(
-            Todo.project_id == pid, Todo.deleted_at.is_(None), Todo.status == "open", Todo.priority == "high"
-        )
-    )
-    high_todos = high_todos_result.scalar() or 0
 
     # 에이전트 상태
     from app.models import InfraCost
@@ -509,8 +463,6 @@ async def project_detail(request: Request, slug: str, db: AsyncSession = Depends
         "week_commits": int(week_commits),
         "week_add": int(week_add),
         "week_del": int(week_del),
-        "open_todos": open_todos,
-        "high_todos": high_todos,
         "agents_total": agents_total,
         "agents_running": agents_running,
         "sessions_total": sessions_total,
@@ -602,9 +554,9 @@ async def timeline_page(request: Request, slug: str, db: AsyncSession = Depends(
             "status": m.status, "start_date": m.start_date.isoformat(),
             "end_date": m.end_date.isoformat(), "sort_order": m.sort_order,
             "color": m.color, "source": m.source,
-            "todo_total": getattr(m, 'todo_total', 0),
-            "todo_done": getattr(m, 'todo_done', 0),
-            "todo_pct": getattr(m, 'todo_pct', 0),
+            "todo_total": 0,
+            "todo_done": 0,
+            "todo_pct": 0,
         }
         for m in milestones
     ], default=_json_serial)

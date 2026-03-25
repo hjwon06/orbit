@@ -21,26 +21,32 @@ agents:
     name: Infrastructure
     tier: opus
     role: Docker, Coolify, Vultr 배포, DB 마이그레이션, 서버 설정
+    mcp: [PostgreSQL]
   A1:
     name: Backend API
     tier: sonnet
     role: FastAPI 라우터, 서비스 레이어, DB 모델, Alembic 마이그레이션
+    mcp: [Context7, PostgreSQL]
   A2:
     name: Frontend UI
     tier: sonnet
     role: Jinja2 템플릿, HTMX 인터랙션, Alpine.js 컴포넌트, Tailwind 스타일링
+    mcp: [Context7, Playwright]
   A3:
     name: AI & Integration
     tier: opus
     role: OpenAI API 연동, GitHub API/Webhook, 외부 서비스 통합
+    mcp: [GitHub, Context7]
   A4:
     name: Data & Analytics
     tier: sonnet
     role: 커밋 통계 수집, 인프라 비용 계산, 대시보드 데이터 집계
+    mcp: [GitHub]
   QA:
     name: QA Verification
     tier: opus
     role: ruff + mypy + pytest 검수, GPT 감리, 코드 리뷰
+    mcp: [Playwright, Sequential Thinking]
 
 phase:
   - A0
@@ -51,10 +57,18 @@ phase:
 mcp:
   active:
     - Context7
+    - Playwright
+    - Serena
     - Sequential Thinking
-  planned:
-    - PostgreSQL MCP
-    - GitHub MCP
+    - GitHub
+    - PostgreSQL
+  removed:
+    - Greptile (Claude 빌트인 Grep/Glob 충분)
+    - Supabase (AWS RDS 사용)
+    - Firebase (AWS 스택)
+    - GitLab (GitHub 사용)
+    - Brave Search (빌트인 WebSearch 충분)
+    - Discord / Telegram / iMessage / FakeChat (개발 무관)
 
 sprints:
   S0: done    # 프로젝트 뼈대

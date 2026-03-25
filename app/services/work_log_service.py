@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 from sqlalchemy import select, update, delete, func as sqlfunc
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import WorkLog, Project, Session as SessionModel, CommitStat, Todo
+from app.models import WorkLog, Project, Session as SessionModel, CommitStat
 from app.schemas.work_log import WorkLogCreate, WorkLogUpdate
 from app.config import get_settings
 
@@ -95,17 +95,6 @@ async def generate_weekly_summary(db: AsyncSession, project_id: int) -> dict:
     )
     commits = commits_result.scalars().all()
 
-    # 최근 7일 완료된 할일
-    todos_result = await db.execute(
-        select(Todo).where(
-            Todo.project_id == project_id,
-            Todo.deleted_at.is_(None),
-            Todo.status == "done",
-            sqlfunc.date(Todo.completed_at) >= week_ago,
-        )
-    )
-    done_todos = todos_result.scalars().all()
-
     # 최근 7일 작업 로그
     logs_result = await db.execute(
         select(WorkLog).where(
@@ -126,9 +115,6 @@ async def generate_weekly_summary(db: AsyncSession, project_id: int) -> dict:
 {chr(10).join(f'- {s.title} ({s.status})' for s in sessions) or '없음'}
 
 커밋: {total_commits}건 (+{total_add} -{total_del})
-
-완료된 할일 ({len(done_todos)}건):
-{chr(10).join(f'- {t.title}' for t in done_todos) or '없음'}
 
 작업 로그 ({len(work_logs)}건):
 {chr(10).join(f'- {w.log_date}: {(w.content or "")[:100]}' for w in work_logs) or '없음'}"""
@@ -158,7 +144,6 @@ async def generate_weekly_summary(db: AsyncSession, project_id: int) -> dict:
                     "commits": total_commits,
                     "additions": total_add,
                     "deletions": total_del,
-                    "todos_done": len(done_todos),
                     "work_logs": len(work_logs),
                 },
             }

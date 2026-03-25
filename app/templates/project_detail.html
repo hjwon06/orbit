@@ -54,17 +54,6 @@
             </p>
         </div>
 
-        <!-- 열린 할일 -->
-        <div class="bg-card border border-border rounded-2xl p-4">
-            <p class="text-[11px] text-muted mb-2">열린 할일</p>
-            <p class="text-xl font-semibold {% if summary.open_todos > 0 %}text-warning{% else %}text-muted{% endif %}">{{ summary.open_todos }}</p>
-            {% if summary.high_todos > 0 %}
-            <p class="text-[11px] text-danger mt-1">high {{ summary.high_todos }}개</p>
-            {% else %}
-            <p class="text-[11px] text-muted mt-1">긴급 없음</p>
-            {% endif %}
-        </div>
-
         <!-- 최근 세션 -->
         <div class="bg-card border border-border rounded-2xl p-4">
             <p class="text-[11px] text-muted mb-2">최근 세션</p>
@@ -171,16 +160,6 @@
                 <span class="text-lg font-semibold text-muted">{{ summary.costs_total }}</span>
             </div>
             <p class="text-[11px] text-muted mt-1">{{ summary.costs_total }}개 활성 서비스</p>
-        </a>
-        <a href="/projects/{{ project.slug }}/todos" class="bg-card border border-border rounded-2xl p-5 hover:border-accent/30 hover:shadow-sm transition-all group">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                    <svg class="w-4 h-4 text-muted shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
-                    <p class="text-sm font-medium group-hover:text-accent-dark transition-colors">AI 할일</p>
-                </div>
-                <span class="text-lg font-semibold {% if summary.open_todos > 0 %}text-warning{% else %}text-muted{% endif %}">{{ summary.open_todos }}</span>
-            </div>
-            <p class="text-[11px] text-muted mt-1">{% if summary.high_todos > 0 %}긴급 {{ summary.high_todos }}개 포함{% else %}열린 할일 {{ summary.open_todos }}개{% endif %}</p>
         </a>
     </div>
 </div>

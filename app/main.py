@@ -16,7 +16,7 @@ from fastapi import WebSocket
 from app.api import api_router
 from app.pages import router as pages_router
 from app.auth import (
-    get_current_user, is_admin, check_credentials, create_session_cookie, COOKIE_NAME, MAX_AGE,
+    get_current_user, check_credentials, create_session_cookie, COOKIE_NAME, MAX_AGE,
 )
 from app.database import async_session as get_async_session
 from app.ws.terminal import terminal_websocket

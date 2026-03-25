@@ -1,9 +1,6 @@
 """터미널 세션 REST API."""
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 from pydantic import BaseModel
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from app.database import get_db
 from app.services.terminal_service import terminal_manager
 
 router = APIRouter(prefix="/api/terminal", tags=["terminal"])

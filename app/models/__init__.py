@@ -25,7 +25,6 @@ class Project(Base):
     work_logs = relationship("WorkLog", back_populates="project", cascade="all, delete-orphan")
     commit_stats = relationship("CommitStat", back_populates="project", cascade="all, delete-orphan")
     infra_costs = relationship("InfraCost", back_populates="project", cascade="all, delete-orphan")
-    todos = relationship("Todo", back_populates="project", cascade="all, delete-orphan")
     def __repr__(self):
         return f"<Project {self.slug}>"
 
@@ -88,7 +87,6 @@ class Milestone(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
     project = relationship("Project", back_populates="milestones")
-    todos = relationship("Todo", back_populates="milestone")
 
     def __repr__(self):
         return f"<Milestone {self.title}>"
@@ -168,30 +166,6 @@ class InfraCost(Base):
     def __repr__(self):
         return f"<InfraCost {self.provider}:{self.service_name}>"
 
-
-class Todo(Base):
-    __tablename__ = "ob_todos"
-
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
-    milestone_id = Column(Integer, ForeignKey("ob_milestones.id", ondelete="SET NULL"), nullable=True)
-    title = Column(String(300), nullable=False)
-    description = Column(Text, default="")
-    priority = Column(String(10), default="medium")
-    status = Column(String(20), default="open")
-    source = Column(String(20), default="manual")
-    github_issue_url = Column(String(500), nullable=True)
-    ai_reasoning = Column(Text, default="")
-    diary_ref = Column(String(100), nullable=True, unique=True)
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
-    completed_at = Column(DateTime(timezone=True), nullable=True)
-    deleted_at = Column(DateTime(timezone=True), nullable=True)
-
-    project = relationship("Project", back_populates="todos")
-    milestone = relationship("Milestone", back_populates="todos")
-
-    def __repr__(self):
-        return f"<Todo {self.title}:{self.status}>"
 
 
 

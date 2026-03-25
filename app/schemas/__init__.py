@@ -5,7 +5,6 @@ from app.schemas.session import SessionCreate, SessionUpdate, SessionFinish, Ses
 from app.schemas.work_log import WorkLogCreate, WorkLogUpdate, WorkLogResponse
 from app.schemas.commit_stat import CommitStatCreate, CommitStatUpdate, CommitStatResponse
 from app.schemas.infra_cost import InfraCostCreate, InfraCostUpdate, InfraCostResponse
-from app.schemas.todo import TodoCreate, TodoUpdate, TodoResponse
 from app.schemas.infra import (
     DbInfo, TableInfo, SqlRequest, SqlResult, SqlHistoryResponse,
 )
@@ -19,6 +18,5 @@ __all__ = [
     "WorkLogCreate", "WorkLogUpdate", "WorkLogResponse",
     "CommitStatCreate", "CommitStatUpdate", "CommitStatResponse",
     "InfraCostCreate", "InfraCostUpdate", "InfraCostResponse",
-    "TodoCreate", "TodoUpdate", "TodoResponse",
     "DbInfo", "TableInfo", "SqlRequest", "SqlResult", "SqlHistoryResponse",
 ]

@@ -69,8 +69,6 @@
                                 </svg>
                             </button>
                         </div>
-                        <span class="text-[9px] text-muted ml-4" x-show="m.todo_total > 0"
-                              x-text="m.todo_done + '/' + m.todo_total + ' (' + m.todo_pct + '%)'"></span>
                     </div>
                     <!-- Bar area -->
                     <div class="relative h-12" :style="'width:' + totalWidth + 'px'">
@@ -87,11 +85,6 @@
                             <span class="text-[10px] font-medium opacity-80 pointer-events-none"
                                   x-text="daysBetween(m.start_date, m.end_date) + '일'"></span>
                             <!-- Progress overlay -->
-                            <div class="absolute bottom-0 left-0 right-0 h-1 bg-black/10 rounded-b-md pointer-events-none overflow-hidden"
-                                 x-show="m.todo_total > 0">
-                                <div class="h-full bg-white/40 rounded-b-md transition-all"
-                                     :style="'width:' + m.todo_pct + '%'"></div>
-                            </div>
                             <!-- Right resize handle -->
                             <div class="absolute right-0 top-0 bottom-0 w-2 cursor-ew-resize rounded-r-md hover:bg-black/20 transition-colors"
                                  @mousedown.prevent.stop="startDrag($event, m, 'right')"></div>
@@ -422,12 +415,7 @@ document.addEventListener('alpine:init', () => {
                     const idx = this.milestones.findIndex(m => m.id === this.editId);
                     if (idx >= 0) {
                         const old = this.milestones[idx];
-                        this.milestones[idx] = {
-                            ...old, ...updated,
-                            todo_total: old.todo_total,
-                            todo_done: old.todo_done,
-                            todo_pct: old.todo_pct,
-                        };
+                        this.milestones[idx] = { ...old, ...updated };
                     }
                 }
             } else {
