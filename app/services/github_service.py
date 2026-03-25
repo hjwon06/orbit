@@ -1,6 +1,8 @@
 """GitHub 연동 — 토큰 + repo_url 설정 시 자동 동작."""
+import asyncio
 import re
 import logging
+import time
 from datetime import date, datetime, timedelta
 from collections import defaultdict
 
@@ -16,6 +18,10 @@ logger = logging.getLogger(__name__)
 # 프로젝트별 마지막 자동 동기화 시각 (메모리 캐시, 10분 쿨다운)
 _last_auto_sync: dict[int, datetime] = {}
 AUTO_SYNC_COOLDOWN_SEC = 600  # 10분
+
+# 브랜치 커밋 캐시 (프로젝트 ID → (만료시각, 데이터))
+_branch_commits_cache: dict[int, tuple[float, dict]] = {}
+BRANCH_COMMITS_CACHE_TTL = 300  # 5분
 
 GITHUB_API = "https://api.github.com"
 GITHUB_GRAPHQL = "https://api.github.com/graphql"
@@ -334,6 +340,141 @@ async def sync_issues(db: AsyncSession, project_id: int) -> dict:
         return {"error": f"GitHub API 에러: {e.response.status_code}"}
     except Exception as e:
         return {"error": f"동기화 실패: {str(e)}"}
+
+
+async def get_branch_commits(
+    db: AsyncSession,
+    project_id: int,
+    max_branches: int = 20,
+    commits_per_branch: int = 5,
+) -> dict:
+    """브랜치 목록 + 각 브랜치 최근 커밋 조회. 5분 메모리 캐시."""
+    # ── 캐시 히트 ──
+    if project_id in _branch_commits_cache:
+        expire_ts, cached = _branch_commits_cache[project_id]
+        if time.time() < expire_ts:
+            return cached
+        del _branch_commits_cache[project_id]
+
+    # ── 사전 검증 ──
+    headers = _get_headers()
+    if not headers:
+        return {"error": "ORBIT_GITHUB_TOKEN이 설정되지 않았습니다."}
+
+    result = await db.execute(select(Project).where(Project.id == project_id))
+    project = result.scalar_one_or_none()
+    if not project:
+        return {"error": "프로젝트를 찾을 수 없습니다."}
+
+    parsed = _parse_repo(str(project.repo_url))
+    if not parsed:
+        return {"error": f"repo_url을 파싱할 수 없습니다: {project.repo_url}"}
+
+    owner, repo = parsed
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            # 1) 레포 기본 정보 (default branch)
+            repo_resp = await client.get(
+                f"{GITHUB_API}/repos/{owner}/{repo}",
+                headers=headers,
+            )
+            repo_resp.raise_for_status()
+            default_branch = repo_resp.json().get("default_branch", "main")
+
+            # 2) 브랜치 목록 조회
+            branches_resp = await client.get(
+                f"{GITHUB_API}/repos/{owner}/{repo}/branches",
+                headers=headers,
+                params={"per_page": 100},
+            )
+            branches_resp.raise_for_status()
+            all_branches = branches_resp.json()
+
+            # max_branches 제한 (default 브랜치 포함 보장)
+            branch_names = [b["name"] for b in all_branches]
+            if default_branch in branch_names:
+                branch_names.remove(default_branch)
+                branch_names = [default_branch] + branch_names[:max_branches - 1]
+            else:
+                branch_names = branch_names[:max_branches]
+
+            branch_protected_map = {
+                b["name"]: b.get("protected", False) for b in all_branches
+            }
+
+            # 3) 각 브랜치 최근 커밋 병렬 조회
+            async def _fetch_branch_commits(branch_name: str) -> dict | None:
+                try:
+                    resp = await client.get(
+                        f"{GITHUB_API}/repos/{owner}/{repo}/commits",
+                        headers=headers,
+                        params={
+                            "sha": branch_name,
+                            "per_page": commits_per_branch,
+                        },
+                    )
+                    resp.raise_for_status()
+                    raw_commits = resp.json()
+
+                    commits = []
+                    for c in raw_commits:
+                        commits.append({
+                            "sha": c["sha"][:7],
+                            "message": c["commit"]["message"].split("\n")[0][:120],
+                            "author": (
+                                c.get("author", {}) or {}
+                            ).get("login", c["commit"]["author"]["name"]),
+                            "author_avatar": (
+                                c.get("author", {}) or {}
+                            ).get("avatar_url", ""),
+                            "date": c["commit"]["author"]["date"],
+                        })
+
+                    last_commit_date = commits[0]["date"] if commits else ""
+
+                    return {
+                        "name": branch_name,
+                        "protected": branch_protected_map.get(branch_name, False),
+                        "last_commit_date": last_commit_date,
+                        "commits": commits,
+                    }
+                except Exception as e:
+                    logger.warning(
+                        f"브랜치 커밋 조회 실패: {owner}/{repo}/{branch_name} — {e}"
+                    )
+                    return None  # 개별 실패 시 해당 브랜치 스킵
+
+            tasks = [_fetch_branch_commits(name) for name in branch_names]
+            results = await asyncio.gather(*tasks)
+
+            # None(실패) 제거
+            branches = [b for b in results if b is not None]
+
+            # 정렬: default 브랜치 최상단 고정, 나머지는 최근 커밋 순
+            default_list = [b for b in branches if b["name"] == default_branch]
+            other_list = [b for b in branches if b["name"] != default_branch]
+            other_list.sort(key=lambda b: b.get("last_commit_date", ""), reverse=True)
+
+            sorted_branches = default_list + other_list
+
+            data = {
+                "branches": sorted_branches,
+                "total_branches": len(all_branches),
+                "default_branch": default_branch,
+            }
+
+            # 캐시 저장
+            _branch_commits_cache[project_id] = (
+                time.time() + BRANCH_COMMITS_CACHE_TTL,
+                data,
+            )
+            return data
+
+    except httpx.HTTPStatusError as e:
+        return {"error": f"GitHub API 에러: {e.response.status_code}"}
+    except Exception as e:
+        return {"error": f"브랜치 커밋 조회 실패: {str(e)}"}
 
 
 async def auto_sync_if_needed(db: AsyncSession, project_id: int) -> dict | None:

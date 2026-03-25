@@ -33,6 +33,9 @@
                 <button @click="tab = 'commits'"
                         :class="tab === 'commits' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
                         class="px-3 py-1 text-xs font-medium rounded-md transition-all">커밋</button>
+                <button @click="tab = 'branches'; loadBranches()"
+                        :class="tab === 'branches' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
+                        class="px-3 py-1 text-xs font-medium rounded-md transition-all">브랜치</button>
             </div>
             <button x-show="tab === 'work'" @click="openWorkEditor(null)"
                     class="bg-accent text-white text-xs px-3 py-1.5 rounded-2xl hover:bg-accent-dark transition-colors">
@@ -212,6 +215,90 @@
         </template>
     </div>
 
+    <!-- ===== BRANCHES TAB ===== -->
+    <div x-show="tab === 'branches'">
+        <!-- 로딩 -->
+        <template x-if="branchesLoading">
+            <div class="flex items-center justify-center py-12">
+                <svg class="w-5 h-5 animate-spin text-accent mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span class="text-sm text-muted">브랜치 정보 로딩 중...</span>
+            </div>
+        </template>
+
+        <!-- 에러 -->
+        <template x-if="!branchesLoading && branchesError">
+            <div class="bg-card border border-border rounded-2xl p-8 text-center">
+                <svg class="w-10 h-10 mx-auto text-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+                <p class="text-sm text-muted" x-text="branchesError"></p>
+            </div>
+        </template>
+
+        <!-- 브랜치 카드 목록 -->
+        <template x-if="!branchesLoading && !branchesError && branches.length > 0">
+            <div>
+                <div class="flex items-center justify-between mb-4">
+                    <p class="text-xs text-muted">
+                        총 <span class="font-semibold text-accent" x-text="branchesTotal"></span>개 브랜치
+                        <template x-if="branchesDefault">
+                            <span> · 기본: <span class="font-mono text-[11px]" x-text="branchesDefault"></span></span>
+                        </template>
+                    </p>
+                    <button @click="loadBranches(true)" class="text-xs text-muted hover:text-accent flex items-center gap-1 transition-colors">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        새로고침
+                    </button>
+                </div>
+                <div class="space-y-3">
+                    <template x-for="branch in branches" :key="branch.name">
+                        <div class="bg-card border border-border rounded-2xl p-4 hover:shadow-sm transition-shadow">
+                            <!-- 브랜치 헤더 -->
+                            <div class="flex items-center gap-2 mb-3">
+                                <svg class="w-4 h-4 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                                <span class="font-mono text-sm font-semibold" x-text="branch.name"></span>
+                                <template x-if="branch.name === branchesDefault">
+                                    <span class="text-[10px] px-1.5 py-0.5 bg-accent/10 text-accent rounded-full font-medium">default</span>
+                                </template>
+                                <template x-if="branch.protected">
+                                    <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="protected"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+                                </template>
+                            </div>
+                            <!-- 커밋 리스트 -->
+                            <div class="space-y-2">
+                                <template x-for="commit in branch.commits" :key="commit.sha">
+                                    <div class="flex items-start gap-2.5 text-sm">
+                                        <template x-if="commit.author_avatar">
+                                            <img :src="commit.author_avatar" class="w-5 h-5 rounded-full mt-0.5 flex-shrink-0">
+                                        </template>
+                                        <template x-if="!commit.author_avatar">
+                                            <div class="w-5 h-5 rounded-full bg-gray-200 mt-0.5 flex-shrink-0"></div>
+                                        </template>
+                                        <div class="min-w-0 flex-1">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-xs font-semibold text-accent-dark" x-text="commit.author"></span>
+                                                <span class="font-mono text-[10px] text-muted" x-text="commit.sha"></span>
+                                                <span class="text-[10px] text-muted ml-auto flex-shrink-0" x-text="relativeTime(commit.date)"></span>
+                                            </div>
+                                            <p class="text-xs text-gray-600 truncate" x-text="commit.message"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </template>
+
+        <!-- 빈 상태 -->
+        <template x-if="!branchesLoading && !branchesError && branches.length === 0">
+            <div class="bg-card border border-border rounded-2xl p-8 text-center">
+                <svg class="w-10 h-10 mx-auto text-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+                <p class="text-sm text-muted">브랜치 정보가 없습니다</p>
+                <p class="text-xs text-muted mt-1">프로젝트에 GitHub repo_url을 설정해주세요</p>
+            </div>
+        </template>
+    </div>
+
     <!-- Work Log Editor Modal -->
     <template x-if="showWorkModal">
         <div class="fixed inset-0 bg-black/30 z-50 flex items-center justify-center" @click.self="showWorkModal = false">
@@ -329,6 +416,11 @@ document.addEventListener('alpine:init', () => {
         summaryLoading: false,
         weeklySummary: '',
         preview: false,
+        branches: [],
+        branchesTotal: 0,
+        branchesDefault: '',
+        branchesLoading: false,
+        branchesError: '',
         workForm: { id: null, log_date: '', content: '' },
         statForm: { id: null, stat_date: '', commit_count: 0, additions: 0, deletions: 0 },
 
@@ -553,6 +645,41 @@ document.addEventListener('alpine:init', () => {
             if (!confirm('삭제하시겠습니까?')) return;
             const res = await fetch(`/api/commit-stats/${id}`, { method: 'DELETE' });
             if (res.ok) this.commitStats = this.commitStats.filter(s => s.id !== id);
+        },
+
+        async loadBranches(force) {
+            if (this.branchesLoading) return;
+            if (!force && this.branches.length > 0) return;
+            this.branchesLoading = true;
+            this.branchesError = '';
+            try {
+                const res = await fetch(`/api/github/branches/${window.__projectId}`);
+                const data = await res.json();
+                if (data.error) {
+                    this.branchesError = data.error;
+                    this.branches = [];
+                } else {
+                    this.branches = data.branches || [];
+                    this.branchesTotal = data.total_branches || 0;
+                    this.branchesDefault = data.default_branch || '';
+                }
+            } catch (e) {
+                this.branchesError = '브랜치 조회 실패: ' + e.message;
+            } finally {
+                this.branchesLoading = false;
+            }
+        },
+
+        relativeTime(dateStr) {
+            if (!dateStr) return '';
+            const now = new Date();
+            const d = new Date(dateStr);
+            const diff = Math.floor((now - d) / 1000);
+            if (diff < 60) return '방금 전';
+            if (diff < 3600) return Math.floor(diff / 60) + '분 전';
+            if (diff < 86400) return Math.floor(diff / 3600) + '시간 전';
+            if (diff < 604800) return Math.floor(diff / 86400) + '일 전';
+            return d.toLocaleDateString('ko-KR');
         },
 
         async syncGitHub() {
