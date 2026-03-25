@@ -253,8 +253,8 @@
                     <div class="flex items-center gap-2 mb-4">
                         <svg class="w-4 h-4 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                         <span class="font-mono text-sm font-semibold" x-text="branchesDefault"></span>
-                        <span class="text-[10px] px-1.5 py-0.5 bg-accent/10 text-accent rounded-full font-medium">팀원별 기여</span>
-                        <span class="text-[10px] text-muted ml-auto" x-text="contributorStats.totalCommits + ' commits by ' + contributorStats.contributors.length + ' contributors'"></span>
+                        <span class="text-[10px] px-1.5 py-0.5 bg-accent/10 text-accent rounded-full font-medium">올린 횟수</span>
+                        <span class="text-[10px] text-muted ml-auto" x-text="contributorStats.totalCommits + '건 · ' + contributorStats.contributors.length + '명'"></span>
                     </div>
                     <div class="space-y-3">
                         <template x-for="c in contributorStats.contributors" :key="c.author">
@@ -700,11 +700,12 @@ document.addEventListener('alpine:init', () => {
         },
 
         get contributorStats() {
-            // main 제외한 모든 브랜치의 커밋을 작성자별로 그룹핑
+            // main 제외 모든 브랜치에서 실제 작업 커밋만 집계 (머지 커밋 제외)
             const authorMap = {};
             for (const branch of this.branches) {
                 if (branch.name === this.branchesDefault) continue;
                 for (const c of branch.commits) {
+                    if (c.message.startsWith('Merge ')) continue;
                     if (!authorMap[c.author]) {
                         authorMap[c.author] = { author: c.author, avatar: c.author_avatar, count: 0, lastMessage: '', lastDate: '', branch: branch.name };
                     }
