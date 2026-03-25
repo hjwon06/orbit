@@ -269,12 +269,12 @@
                                     <template x-if="branch.behind > 0"><span class="text-red-400" x-text="'↓' + branch.behind"></span></template>
                                 </span>
                             </div>
-                            <!-- 머지된 브랜치: 간결 표시 -->
-                            <template x-if="branch.merged">
-                                <p class="text-xs text-muted italic">main에 머지 완료 — 고유 커밋 없음</p>
+                            <!-- 머지 + 커밋 없음 -->
+                            <template x-if="branch.merged && branch.commits.length === 0">
+                                <p class="text-xs text-muted italic">main에 머지 완료 — PR 커밋 히스토리 없음</p>
                             </template>
-                            <!-- 커밋 리스트 -->
-                            <template x-if="!branch.merged && branch.commits.length > 0">
+                            <!-- 커밋 리스트 (활성 + 머지 모두) -->
+                            <template x-if="branch.commits.length > 0">
                                 <div class="space-y-2">
                                     <template x-for="commit in branch.commits" :key="commit.sha">
                                         <div class="flex items-start gap-2.5 text-sm">

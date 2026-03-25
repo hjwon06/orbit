@@ -403,6 +403,40 @@ async def get_branch_commits(
                 b["name"]: b.get("protected", False) for b in all_branches
             }
 
+            # 3-0) 머지된 브랜치의 PR 커밋 조회 헬퍼
+            async def _fetch_pr_commits(
+                client: httpx.AsyncClient, owner: str, repo: str,
+                branch_name: str, headers: dict, limit: int,
+            ) -> list:
+                """머지된 PR에서 해당 브랜치의 고유 커밋을 조회."""
+                try:
+                    pr_resp = await client.get(
+                        f"{GITHUB_API}/repos/{owner}/{repo}/pulls",
+                        headers=headers,
+                        params={
+                            "state": "closed",
+                            "head": f"{owner}:{branch_name}",
+                            "sort": "updated",
+                            "direction": "desc",
+                            "per_page": 1,
+                        },
+                    )
+                    pr_resp.raise_for_status()
+                    prs = pr_resp.json()
+                    if not prs or not prs[0].get("merged_at"):
+                        return []
+                    pr_number = prs[0]["number"]
+
+                    commits_resp = await client.get(
+                        f"{GITHUB_API}/repos/{owner}/{repo}/pulls/{pr_number}/commits",
+                        headers=headers,
+                        params={"per_page": limit},
+                    )
+                    commits_resp.raise_for_status()
+                    return list(reversed(commits_resp.json()))[:limit]
+                except Exception:
+                    return []
+
             # 3) 각 브랜치 고유 커밋 병렬 조회 (Compare API)
             async def _fetch_branch_commits(branch_name: str) -> dict | None:
                 try:
@@ -435,9 +469,12 @@ async def get_branch_commits(
                             # 고유 커밋이 있으면 그것만 표시
                             raw_commits = unique_commits
                         else:
-                            # 머지 완료: 커밋 없이 상태만 표시
+                            # 머지 완료: PR 커밋 히스토리 조회
                             merged = True
-                            raw_commits = []
+                            raw_commits = await _fetch_pr_commits(
+                                client, owner, repo, branch_name,
+                                headers, commits_per_branch,
+                            )
 
                     commits = []
                     for c in raw_commits:
