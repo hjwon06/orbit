@@ -403,12 +403,12 @@ async def get_branch_commits(
                 b["name"]: b.get("protected", False) for b in all_branches
             }
 
-            # 3-0) 머지된 브랜치의 PR 커밋 조회 헬퍼
+            # 3-0) 머지된 브랜치의 PR 커밋 조회 헬퍼 (모든 PR 합산)
             async def _fetch_pr_commits(
                 client: httpx.AsyncClient, owner: str, repo: str,
                 branch_name: str, headers: dict, limit: int,
             ) -> list:
-                """머지된 PR에서 해당 브랜치의 고유 커밋을 조회."""
+                """머지된 PR 전체에서 해당 브랜치의 고유 커밋을 조회."""
                 try:
                     pr_resp = await client.get(
                         f"{GITHUB_API}/repos/{owner}/{repo}/pulls",
@@ -418,22 +418,43 @@ async def get_branch_commits(
                             "head": f"{owner}:{branch_name}",
                             "sort": "updated",
                             "direction": "desc",
-                            "per_page": 1,
+                            "per_page": 10,
                         },
                     )
                     pr_resp.raise_for_status()
-                    prs = pr_resp.json()
-                    if not prs or not prs[0].get("merged_at"):
+                    prs = [p for p in pr_resp.json() if p.get("merged_at")]
+                    if not prs:
                         return []
-                    pr_number = prs[0]["number"]
 
-                    commits_resp = await client.get(
-                        f"{GITHUB_API}/repos/{owner}/{repo}/pulls/{pr_number}/commits",
-                        headers=headers,
-                        params={"per_page": limit},
+                    # 모든 머지된 PR의 커밋을 병렬 수집
+                    async def _get_pr(pr_number: int) -> list:
+                        try:
+                            resp = await client.get(
+                                f"{GITHUB_API}/repos/{owner}/{repo}/pulls/{pr_number}/commits",
+                                headers=headers,
+                                params={"per_page": 30},
+                            )
+                            resp.raise_for_status()
+                            return resp.json()
+                        except Exception:
+                            return []
+
+                    all_results = await asyncio.gather(
+                        *[_get_pr(p["number"]) for p in prs]
                     )
-                    commits_resp.raise_for_status()
-                    return list(reversed(commits_resp.json()))[:limit]
+
+                    # 중복 제거 (sha 기준) + 최신순 정렬
+                    seen = set()
+                    all_commits = []
+                    for pr_commits in all_results:
+                        for c in pr_commits:
+                            if c["sha"] not in seen:
+                                seen.add(c["sha"])
+                                all_commits.append(c)
+                    all_commits.sort(
+                        key=lambda c: c["commit"]["author"]["date"], reverse=True,
+                    )
+                    return all_commits[:limit]
                 except Exception:
                     return []
 
