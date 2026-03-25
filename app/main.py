@@ -11,11 +11,15 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from app.config import get_settings
 from app.database import engine, Base
+from fastapi import WebSocket
+
 from app.api import api_router
 from app.pages import router as pages_router
 from app.auth import (
     get_current_user, check_credentials, create_session_cookie, COOKIE_NAME, MAX_AGE,
 )
+from app.ws.terminal import terminal_websocket
+from app.services.terminal_service import terminal_manager
 
 
 @asynccontextmanager
@@ -23,6 +27,7 @@ async def lifespan(app: FastAPI):
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield
+    await terminal_manager.cleanup_all()
     await engine.dispose()
 
 
@@ -53,7 +58,7 @@ templates.env.filters["kst"] = _to_kst
 
 # 인증 불필요 경로
 PUBLIC_PATHS = {"/login", "/api/docs", "/openapi.json", "/docs", "/redoc"}
-PUBLIC_PREFIXES = ("/static/",)
+PUBLIC_PREFIXES = ("/static/", "/ws/")
 
 
 class AuthMiddleware(BaseHTTPMiddleware):
@@ -91,6 +96,15 @@ app.add_middleware(AuthMiddleware)
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 app.include_router(api_router)
 app.include_router(pages_router)
+
+# 터미널 API + WebSocket
+from app.api.terminal import router as terminal_api_router  # noqa: E402
+app.include_router(terminal_api_router)
+
+
+@app.websocket("/ws/terminal/{session_id}")
+async def ws_terminal(websocket: WebSocket, session_id: str):
+    await terminal_websocket(websocket, session_id)
 
 
 @app.get("/login", response_class=HTMLResponse)

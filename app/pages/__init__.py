@@ -757,6 +757,36 @@ async def repo_score_page(request: Request, slug: str, db: AsyncSession = Depend
     })
 
 
+@router.get("/terminal", response_class=HTMLResponse)
+async def terminal_page(request: Request, db: AsyncSession = Depends(get_db)):
+    projects = await get_projects(db, status="active")
+    return templates.TemplateResponse("terminal.html", {
+        "request": request,
+        "projects": projects,
+        "page_title": "터미널",
+        "initial_slug": "",
+        "initial_name": "",
+    })
+
+
+@router.get("/projects/{slug}/terminal", response_class=HTMLResponse)
+async def project_terminal_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    projects = await get_projects(db, status="active")
+    return templates.TemplateResponse("terminal.html", {
+        "request": request,
+        "projects": projects,
+        "project": project,
+        "page_title": f"{project.name} — 터미널",
+        "initial_slug": project.slug,
+        "initial_name": project.name,
+    })
+
+
 @router.get("/server-costs", response_class=HTMLResponse)
 async def server_costs_page(request: Request, db: AsyncSession = Depends(get_db)):
     from sqlalchemy import select, func as sqlfunc

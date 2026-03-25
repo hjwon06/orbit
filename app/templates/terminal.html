@@ -1,0 +1,294 @@
+{% extends "base.html" %}
+
+{% block head %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.min.css">
+<style>
+    .terminal-container {
+        height: calc(100vh - 10rem);
+        background: #1a1b26;
+        border-radius: 1rem;
+        overflow: hidden;
+        position: relative;
+    }
+    .terminal-container .xterm { height: 100%; padding: 8px; }
+    .tab-btn { transition: all 0.15s ease; }
+    .tab-btn.active { background: linear-gradient(135deg, #3B82F6, #8B5CF6); color: white; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div x-data="terminalManager()" x-init="init()" x-cloak>
+    <!-- 헤더 -->
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h2 class="text-xl font-extrabold text-gray-900">터미널</h2>
+            <p class="text-sm text-muted mt-0.5">프로젝트별 터미널 세션</p>
+        </div>
+    </div>
+
+    <!-- 탭 바 -->
+    <div class="flex items-center gap-1 mb-3 flex-wrap">
+        <template x-for="tab in tabs" :key="tab.id">
+            <div class="flex items-center">
+                <button @click="switchTab(tab.id)"
+                    class="tab-btn flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold"
+                    :class="activeTab === tab.id ? 'active' : 'text-gray-500 bg-black/5 hover:bg-black/10'">
+                    <span class="w-2 h-2 rounded-full" :class="tab.alive ? 'bg-success' : 'bg-danger'"></span>
+                    <span x-text="tab.label"></span>
+                </button>
+                <button @click="closeTab(tab.id)" class="ml-0.5 p-1 text-gray-400 hover:text-danger rounded transition-colors">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+        </template>
+
+        <!-- 새 터미널 버튼 -->
+        <div class="relative" x-data="{ open: false }">
+            <button @click="open = !open"
+                class="flex items-center gap-1 px-3 py-1.5 rounded-xl text-sm font-semibold text-accent bg-accent-light hover:bg-accent hover:text-white transition-all">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                새 터미널
+            </button>
+            <!-- 프로젝트 선택 드롭다운 -->
+            <div x-show="open" @click.away="open = false" x-transition
+                class="absolute top-full left-0 mt-1 w-48 glass rounded-xl shadow-lg z-50 py-1">
+                <button @click="addTab('', '홈'); open = false"
+                    class="w-full text-left px-3 py-2 text-sm hover:bg-black/5 transition-colors">홈 디렉토리</button>
+                {% for p in projects %}
+                <button @click="addTab('{{ p.slug }}', '{{ p.name }}'); open = false"
+                    class="w-full text-left px-3 py-2 text-sm hover:bg-black/5 transition-colors">{{ p.name }}</button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <!-- 터미널 영역 -->
+    <div id="terminal-panels"></div>
+
+    <!-- 빈 상태 -->
+    <template x-if="tabs.length === 0">
+        <div class="glass rounded-2xl p-12 text-center">
+            <svg class="w-12 h-12 mx-auto text-muted mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+            </svg>
+            <p class="text-muted mb-3">터미널 세션이 없습니다</p>
+            <div class="flex items-center justify-center gap-2 flex-wrap">
+                <button @click="addTab('', '홈')"
+                    class="px-4 py-2 bg-accent text-white text-sm font-semibold rounded-2xl hover:bg-accent-dark transition-all">
+                    홈 터미널 열기
+                </button>
+                {% for p in projects %}
+                <button @click="addTab('{{ p.slug }}', '{{ p.name }}')"
+                    class="px-4 py-2 glass text-sm font-semibold rounded-2xl hover:bg-black/5 transition-all">
+                    {{ p.name }}
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </template>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-web-links@0.9.0/lib/xterm-addon-web-links.min.js"></script>
+<script>
+function terminalManager() {
+    return {
+        tabs: [],
+        activeTab: null,
+        _terminals: {},
+        _sockets: {},
+        _fitAddons: {},
+
+        init() {
+            // URL에 프로젝트 slug가 있으면 자동으로 탭 열기
+            const slug = '{{ initial_slug|default("") }}';
+            const name = '{{ initial_name|default("") }}';
+            if (slug) {
+                this.addTab(slug, name || slug);
+            }
+        },
+
+        async addTab(slug, label) {
+            // 세션 생성 API
+            const resp = await fetch('/api/terminal/sessions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ project_slug: slug, shell: 'auto' }),
+            });
+            const data = await resp.json();
+            if (data.error) { alert(data.error); return; }
+
+            const tab = { id: data.session_id, label, slug, alive: true };
+            this.tabs.push(tab);
+            this.activeTab = tab.id;
+
+            // xterm 초기화 (DOM 렌더 대기)
+            await this.$nextTick();
+            this._initTerminal(tab.id);
+        },
+
+        switchTab(id) {
+            this.activeTab = id;
+            // DOM 패널 전환
+            const panels = document.getElementById('terminal-panels');
+            if (panels) {
+                for (const child of panels.children) {
+                    child.style.display = child.id === 'term-wrapper-' + id ? 'block' : 'none';
+                }
+            }
+            // fit 재계산
+            setTimeout(() => {
+                const fitAddon = this._fitAddons[id];
+                if (fitAddon) fitAddon.fit();
+            }, 50);
+        },
+
+        async closeTab(id) {
+            // WebSocket 닫기
+            const ws = this._sockets[id];
+            if (ws) { ws.close(); delete this._sockets[id]; }
+            // xterm dispose
+            const term = this._terminals[id];
+            if (term) { term.dispose(); delete this._terminals[id]; }
+            delete this._fitAddons[id];
+            // DOM 제거
+            const wrapper = document.getElementById('term-wrapper-' + id);
+            if (wrapper) wrapper.remove();
+            // 세션 삭제 API
+            await fetch(`/api/terminal/sessions/${id}`, { method: 'DELETE' });
+            // 탭 제거
+            this.tabs = this.tabs.filter(t => t.id !== id);
+            if (this.activeTab === id) {
+                this.activeTab = this.tabs.length > 0 ? this.tabs[this.tabs.length - 1].id : null;
+            }
+        },
+
+        _initTerminal(sessionId) {
+            // DOM 직접 생성 (Alpine template 타이밍 문제 회피)
+            const panels = document.getElementById('terminal-panels');
+            const wrapper = document.createElement('div');
+            wrapper.id = 'term-wrapper-' + sessionId;
+            wrapper.className = 'terminal-container';
+            const container = document.createElement('div');
+            container.id = 'term-' + sessionId;
+            container.style.height = '100%';
+            wrapper.appendChild(container);
+            panels.appendChild(wrapper);
+
+            // 다른 패널 숨기기
+            for (const child of panels.children) {
+                child.style.display = child.id === 'term-wrapper-' + sessionId ? 'block' : 'none';
+            }
+
+            const term = new Terminal({
+                cursorBlink: true,
+                fontSize: 14,
+                fontFamily: "'Cascadia Code', 'Fira Code', 'JetBrains Mono', 'Consolas', monospace",
+                theme: {
+                    background: '#1a1b26',
+                    foreground: '#c0caf5',
+                    cursor: '#c0caf5',
+                    selectionBackground: 'rgba(59,130,246,0.3)',
+                    black: '#15161e', red: '#f7768e', green: '#9ece6a', yellow: '#e0af68',
+                    blue: '#7aa2f7', magenta: '#bb9af7', cyan: '#7dcfff', white: '#a9b1d6',
+                },
+                scrollback: 10000,
+                convertEol: true,
+            });
+
+            const fitAddon = new (FitAddon.FitAddon || FitAddon)();
+            term.loadAddon(fitAddon);
+            term.loadAddon(new (WebLinksAddon.WebLinksAddon || WebLinksAddon)());
+
+            term.open(container);
+            fitAddon.fit();
+            term.focus();
+
+            this._terminals[sessionId] = term;
+            this._fitAddons[sessionId] = fitAddon;
+
+            // 클릭 시 포커스 + Alpine 이벤트 전파 차단
+            wrapper.addEventListener('click', () => term.focus());
+            wrapper.addEventListener('keydown', (e) => e.stopPropagation());
+            wrapper.addEventListener('keyup', (e) => e.stopPropagation());
+            wrapper.addEventListener('keypress', (e) => e.stopPropagation());
+            wrapper.setAttribute('tabindex', '0');
+
+            // ResizeObserver
+            const ro = new ResizeObserver(() => {
+                fitAddon.fit();
+                const ws = this._sockets[sessionId];
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+                }
+            });
+            ro.observe(container);
+
+            // WebSocket 연결
+            this._connectWs(sessionId, term);
+        },
+
+        _connectWs(sessionId, term) {
+            const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const ws = new WebSocket(`${proto}//${location.host}/ws/terminal/${sessionId}`);
+            this._sockets[sessionId] = ws;
+            // 디버그용 글로벌 참조
+            window.__orbitTermSockets = window.__orbitTermSockets || {};
+            window.__orbitTermSockets[sessionId] = ws;
+
+            ws.onopen = () => {
+                console.log('[ORBIT Terminal] WS connected:', sessionId);
+                ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+                term.focus();
+            };
+
+            ws.onmessage = (e) => {
+                const data = e.data;
+                // JSON 제어 메시지 체크
+                if (data.startsWith('{')) {
+                    try {
+                        const msg = JSON.parse(data);
+                        if (msg.type === 'exit') {
+                            const tab = this.tabs.find(t => t.id === sessionId);
+                            if (tab) tab.alive = false;
+                            term.writeln('\r\n\x1b[90m[프로세스 종료]\x1b[0m');
+                            return;
+                        }
+                        if (msg.type === 'pong') return;
+                    } catch (err) { /* 일반 텍스트 */ }
+                }
+                term.write(data);
+            };
+
+            ws.onclose = () => {
+                const tab = this.tabs.find(t => t.id === sessionId);
+                if (tab && tab.alive) {
+                    // 자동 재연결 (3초)
+                    tab.alive = false;
+                    setTimeout(() => {
+                        if (this.tabs.find(t => t.id === sessionId)) {
+                            tab.alive = true;
+                            this._connectWs(sessionId, term);
+                        }
+                    }, 3000);
+                }
+            };
+
+            ws.onerror = () => {};
+
+            // 키 입력 → WebSocket
+            const socketsRef = this._sockets;
+            term.onData((data) => {
+                const currentWs = socketsRef[sessionId] || window.__orbitTermSockets[sessionId];
+                if (currentWs && currentWs.readyState === WebSocket.OPEN) {
+                    currentWs.send(data);
+                }
+            });
+        },
+    };
+}
+</script>
+{% endblock %}

@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     rds_master_user: str = "giniz_master"
     rds_master_password: str = ""
 
+    terminal_projects_dir: str = ""
+
     def get_managed_dbs(self) -> list[dict]:
         import json
         return json.loads(self.managed_databases)
