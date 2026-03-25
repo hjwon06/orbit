@@ -261,28 +261,41 @@
                                 <template x-if="branch.protected">
                                     <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="protected"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                                 </template>
+                                <span class="text-[10px] font-mono ml-auto flex items-center gap-1.5">
+                                    <template x-if="branch.merged">
+                                        <span class="px-1.5 py-0.5 bg-purple-100 text-purple-600 rounded-full font-sans font-medium">merged</span>
+                                    </template>
+                                    <template x-if="branch.ahead > 0"><span class="text-emerald-600" x-text="'↑' + branch.ahead"></span></template>
+                                    <template x-if="branch.behind > 0"><span class="text-red-400" x-text="'↓' + branch.behind"></span></template>
+                                </span>
                             </div>
+                            <!-- 머지된 브랜치: 간결 표시 -->
+                            <template x-if="branch.merged">
+                                <p class="text-xs text-muted italic">main에 머지 완료 — 고유 커밋 없음</p>
+                            </template>
                             <!-- 커밋 리스트 -->
-                            <div class="space-y-2">
-                                <template x-for="commit in branch.commits" :key="commit.sha">
-                                    <div class="flex items-start gap-2.5 text-sm">
-                                        <template x-if="commit.author_avatar">
-                                            <img :src="commit.author_avatar" class="w-5 h-5 rounded-full mt-0.5 flex-shrink-0">
-                                        </template>
-                                        <template x-if="!commit.author_avatar">
-                                            <div class="w-5 h-5 rounded-full bg-gray-200 mt-0.5 flex-shrink-0"></div>
-                                        </template>
-                                        <div class="min-w-0 flex-1">
-                                            <div class="flex items-center gap-2">
-                                                <span class="text-xs font-semibold text-accent-dark" x-text="commit.author"></span>
-                                                <span class="font-mono text-[10px] text-muted" x-text="commit.sha"></span>
-                                                <span class="text-[10px] text-muted ml-auto flex-shrink-0" x-text="relativeTime(commit.date)"></span>
+                            <template x-if="!branch.merged && branch.commits.length > 0">
+                                <div class="space-y-2">
+                                    <template x-for="commit in branch.commits" :key="commit.sha">
+                                        <div class="flex items-start gap-2.5 text-sm">
+                                            <template x-if="commit.author_avatar">
+                                                <img :src="commit.author_avatar" class="w-5 h-5 rounded-full mt-0.5 flex-shrink-0">
+                                            </template>
+                                            <template x-if="!commit.author_avatar">
+                                                <div class="w-5 h-5 rounded-full bg-gray-200 mt-0.5 flex-shrink-0"></div>
+                                            </template>
+                                            <div class="min-w-0 flex-1">
+                                                <div class="flex items-center gap-2">
+                                                    <span class="text-xs font-semibold text-accent-dark" x-text="commit.author"></span>
+                                                    <span class="font-mono text-[10px] text-muted" x-text="commit.sha"></span>
+                                                    <span class="text-[10px] text-muted ml-auto flex-shrink-0" x-text="relativeTime(commit.date)"></span>
+                                                </div>
+                                                <p class="text-xs text-gray-600 truncate" x-text="commit.message"></p>
                                             </div>
-                                            <p class="text-xs text-gray-600 truncate" x-text="commit.message"></p>
                                         </div>
-                                    </div>
-                                </template>
-                            </div>
+                                    </template>
+                                </div>
+                            </template>
                         </div>
                     </template>
                 </div>

@@ -403,19 +403,41 @@ async def get_branch_commits(
                 b["name"]: b.get("protected", False) for b in all_branches
             }
 
-            # 3) 각 브랜치 최근 커밋 병렬 조회
+            # 3) 각 브랜치 고유 커밋 병렬 조회 (Compare API)
             async def _fetch_branch_commits(branch_name: str) -> dict | None:
                 try:
-                    resp = await client.get(
-                        f"{GITHUB_API}/repos/{owner}/{repo}/commits",
-                        headers=headers,
-                        params={
-                            "sha": branch_name,
-                            "per_page": commits_per_branch,
-                        },
-                    )
-                    resp.raise_for_status()
-                    raw_commits = resp.json()
+                    ahead = 0
+                    behind = 0
+                    merged = False
+
+                    if branch_name == default_branch:
+                        # default 브랜치: 일반 commits API
+                        resp = await client.get(
+                            f"{GITHUB_API}/repos/{owner}/{repo}/commits",
+                            headers=headers,
+                            params={"sha": branch_name, "per_page": commits_per_branch},
+                        )
+                        resp.raise_for_status()
+                        raw_commits = resp.json()
+                    else:
+                        # Compare: default...branch → 고유 커밋 + ahead/behind
+                        resp = await client.get(
+                            f"{GITHUB_API}/repos/{owner}/{repo}/compare/{default_branch}...{branch_name}",
+                            headers=headers,
+                        )
+                        resp.raise_for_status()
+                        compare_data = resp.json()
+                        ahead = compare_data.get("ahead_by", 0)
+                        behind = compare_data.get("behind_by", 0)
+                        unique_commits = list(reversed(compare_data.get("commits", [])))[:commits_per_branch]
+
+                        if unique_commits:
+                            # 고유 커밋이 있으면 그것만 표시
+                            raw_commits = unique_commits
+                        else:
+                            # 머지 완료: 커밋 없이 상태만 표시
+                            merged = True
+                            raw_commits = []
 
                     commits = []
                     for c in raw_commits:
@@ -438,6 +460,9 @@ async def get_branch_commits(
                         "protected": branch_protected_map.get(branch_name, False),
                         "last_commit_date": last_commit_date,
                         "commits": commits,
+                        "ahead": ahead,
+                        "behind": behind,
+                        "merged": merged,
                     }
                 except Exception as e:
                     logger.warning(
