@@ -16,8 +16,9 @@ from fastapi import WebSocket
 from app.api import api_router
 from app.pages import router as pages_router
 from app.auth import (
-    get_current_user, check_credentials, create_session_cookie, COOKIE_NAME, MAX_AGE,
+    get_current_user, is_admin, check_credentials, create_session_cookie, COOKIE_NAME, MAX_AGE,
 )
+from app.database import async_session as get_async_session
 from app.ws.terminal import terminal_websocket
 from app.services.terminal_service import terminal_manager
 
@@ -55,6 +56,8 @@ def _to_kst(value, fmt="%Y-%m-%d %H:%M"):
 
 
 templates.env.filters["kst"] = _to_kst
+templates.env.globals["is_admin_user"] = lambda request: getattr(getattr(request, "state", None), "user", {}).get("role") == "admin"
+templates.env.globals["current_username"] = lambda request: getattr(getattr(request, "state", None), "user", {}).get("user", "")
 
 # 인증 불필요 경로
 PUBLIC_PATHS = {"/login", "/api/docs", "/openapi.json", "/docs", "/redoc"}
@@ -70,7 +73,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 로컬 API 면제 (Claude Code Hook 연동용)
-        LOCAL_API_EXEMPT = ("/api/agents", "/api/projects/", "/api/sessions", "/api/milestones", "/api/todos")
+        LOCAL_API_EXEMPT = ("/api/agents", "/api/projects/", "/api/sessions", "/api/milestones")
         if any(path.startswith(p) for p in LOCAL_API_EXEMPT):
             client_ip = request.client.host if request.client else ""
             if client_ip in {"127.0.0.1", "::1"} or client_ip.startswith("172."):
@@ -82,12 +85,28 @@ class AuthMiddleware(BaseHTTPMiddleware):
             if not user:
                 from fastapi.responses import JSONResponse
                 return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
+            # 관리자 전용 API
+            ADMIN_API = ("/api/infra/", "/api/cloud-costs/", "/api/repo-score/")
+            if any(path.startswith(p) for p in ADMIN_API):
+                if user.get("role") != "admin":
+                    from fastapi.responses import JSONResponse
+                    return JSONResponse(status_code=403, content={"detail": "Admin only"})
             return await call_next(request)
 
         # 페이지는 미인증 시 로그인으로 리다이렉트
         user = get_current_user(request)
         if not user:
             return RedirectResponse(url="/login", status_code=303)
+        # 템플릿에서 사용할 수 있도록 request.state에 저장
+        request.state.user = user
+        # 관리자 전용 페이지
+        ADMIN_PAGES = ("/infra", "/server-costs")
+        if any(path == p or path.startswith(p + "/") for p in ADMIN_PAGES):
+            if user.get("role") != "admin":
+                return RedirectResponse(url="/", status_code=303)
+        if "/repo-score" in path:
+            if user.get("role") != "admin":
+                return RedirectResponse(url="/", status_code=303)
         return await call_next(request)
 
 
@@ -140,11 +159,13 @@ async def login_submit(request: Request, username: str = Form(...), password: st
             "request": request,
             "error": "로그인 시도가 너무 많습니다. 15분 후 다시 시도하세요.",
         })
-    if check_credentials(username, password):
+    async with get_async_session() as db:
+        user_info = await check_credentials(username, password, db)
+    if user_info:
         _login_attempts.pop(f"ip:{ip}", None)
         _login_attempts.pop(f"user:{username}", None)
         response = RedirectResponse(url="/", status_code=303)
-        cookie = create_session_cookie(username)
+        cookie = create_session_cookie(user_info["username"], user_info["role"])
         response.set_cookie(
             key=COOKIE_NAME, value=cookie, max_age=MAX_AGE,
             httponly=True, samesite="lax",

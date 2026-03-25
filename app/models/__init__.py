@@ -195,6 +195,20 @@ class Todo(Base):
 
 
 
+class User(Base):
+    __tablename__ = "ob_users"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    username = Column(String(50), unique=True, nullable=False)
+    password_hash = Column(String(200), nullable=False)
+    display_name = Column(String(100), nullable=False)
+    role = Column(String(20), nullable=False, default="member")  # admin / member
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    def __repr__(self):
+        return f"<User {self.username}:{self.role}>"
+
+
 class RepoScore(Base):
     __tablename__ = "ob_repo_scores"
 

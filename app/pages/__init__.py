@@ -14,7 +14,7 @@ from app.services.session_service import get_sessions_by_project
 from app.services.work_log_service import get_work_logs_by_project
 from app.services.commit_stat_service import get_commit_stats_by_project
 from app.services.infra_cost_service import get_costs_by_project
-from app.services.todo_service import get_todos_by_project
+# todo_service import 제거 (AI 할일 기능 삭제)
 from app.schemas.agent import AgentCreate
 
 
@@ -38,6 +38,8 @@ def _to_kst(value, fmt="%Y-%m-%d %H:%M"):
         return str(value)
 
 templates.env.filters["kst"] = _to_kst
+templates.env.globals["is_admin_user"] = lambda request: getattr(getattr(request, "state", None), "user", {}).get("role") == "admin"
+templates.env.globals["current_username"] = lambda request: getattr(getattr(request, "state", None), "user", {}).get("user", "")
 
 DAESIN_AGENTS = [
     ("A0", "Infrastructure", "opus"),
@@ -705,39 +707,7 @@ async def costs_page(request: Request, slug: str, db: AsyncSession = Depends(get
     })
 
 
-@router.get("/projects/{slug}/todos", response_class=HTMLResponse)
-async def todos_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
-    from app.services import get_project_by_slug
-    project = await get_project_by_slug(db, slug)
-    if not project:
-        from fastapi.exceptions import HTTPException
-        raise HTTPException(status_code=404)
-    todos = await get_todos_by_project(db, project.id)
-    from app.services.milestone_service import get_milestones_by_project
-    milestones = await get_milestones_by_project(db, project.id)
-    todos_json = json.dumps([
-        {
-            "id": t.id, "project_id": t.project_id, "title": t.title,
-            "description": t.description or "", "priority": t.priority,
-            "status": t.status, "source": t.source,
-            "milestone_id": t.milestone_id,
-            "github_issue_url": t.github_issue_url,
-            "ai_reasoning": t.ai_reasoning or "",
-            "completed_at": t.completed_at.isoformat() if t.completed_at else None,
-        }
-        for t in todos
-    ], default=_json_serial)
-    milestones_json = json.dumps([
-        {"id": m.id, "title": m.title, "status": m.status}
-        for m in milestones
-    ], default=_json_serial)
-    return templates.TemplateResponse("todos.html", {
-        "request": request,
-        "project": project,
-        "todos_json": todos_json,
-        "milestones_json": milestones_json,
-        "page_title": f"{project.name} — AI 할일",
-    })
+# AI 할일 라우트 삭제됨
 
 
 @router.get("/projects/{slug}/repo-score", response_class=HTMLResponse)
