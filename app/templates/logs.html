@@ -248,16 +248,54 @@
                         새로고침
                     </button>
                 </div>
+                <!-- main: 팀원별 기여 요약 카드 -->
+                <div class="bg-card border border-border rounded-2xl p-4 mb-3">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-4 h-4 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                        <span class="font-mono text-sm font-semibold" x-text="branchesDefault"></span>
+                        <span class="text-[10px] px-1.5 py-0.5 bg-accent/10 text-accent rounded-full font-medium">팀원별 기여</span>
+                        <span class="text-[10px] text-muted ml-auto" x-text="contributorStats.totalCommits + ' commits by ' + contributorStats.contributors.length + ' contributors'"></span>
+                    </div>
+                    <div class="space-y-3">
+                        <template x-for="c in contributorStats.contributors" :key="c.author">
+                            <div class="flex items-center gap-3">
+                                <template x-if="c.avatar">
+                                    <img :src="c.avatar" class="w-7 h-7 rounded-full flex-shrink-0">
+                                </template>
+                                <template x-if="!c.avatar">
+                                    <div class="w-7 h-7 rounded-full bg-gray-200 flex-shrink-0"></div>
+                                </template>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="text-xs font-semibold" x-text="c.author"></span>
+                                        <span class="text-[10px] text-muted font-mono" x-text="c.branch || ''"></span>
+                                        <span class="text-[10px] font-semibold text-accent ml-auto" x-text="c.count + ' commits'"></span>
+                                    </div>
+                                    <!-- 기여도 바 -->
+                                    <div class="flex items-center gap-2">
+                                        <div class="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                            <div class="h-full rounded-full transition-all" :style="'width:' + c.pct + '%; background: linear-gradient(90deg, #3B82F6, #8B5CF6)'"></div>
+                                        </div>
+                                        <span class="text-[10px] text-muted w-8 text-right" x-text="c.pct + '%'"></span>
+                                    </div>
+                                    <p class="text-[11px] text-gray-500 truncate mt-0.5" x-text="c.lastMessage"></p>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                    <template x-if="contributorStats.contributors.length === 0">
+                        <p class="text-xs text-muted italic">브랜치 커밋 데이터 없음</p>
+                    </template>
+                </div>
+
+                <!-- 나머지 브랜치 (main 제외) -->
                 <div class="space-y-3">
-                    <template x-for="branch in branches" :key="branch.name">
+                    <template x-for="branch in branches.filter(b => b.name !== branchesDefault)" :key="branch.name">
                         <div class="bg-card border border-border rounded-2xl p-4 hover:shadow-sm transition-shadow">
                             <!-- 브랜치 헤더 -->
                             <div class="flex items-center gap-2 mb-3">
                                 <svg class="w-4 h-4 text-accent flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
                                 <span class="font-mono text-sm font-semibold" x-text="branch.name"></span>
-                                <template x-if="branch.name === branchesDefault">
-                                    <span class="text-[10px] px-1.5 py-0.5 bg-accent/10 text-accent rounded-full font-medium">default</span>
-                                </template>
                                 <template x-if="branch.protected">
                                     <svg class="w-3.5 h-3.5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" title="protected"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
                                 </template>
@@ -273,7 +311,7 @@
                             <template x-if="branch.merged && branch.commits.length === 0">
                                 <p class="text-xs text-muted italic">main에 머지 완료 — PR 커밋 히스토리 없음</p>
                             </template>
-                            <!-- 커밋 리스트 (활성 + 머지 모두) -->
+                            <!-- 커밋 리스트 -->
                             <template x-if="branch.commits.length > 0">
                                 <div class="space-y-2">
                                     <template x-for="commit in branch.commits" :key="commit.sha">
@@ -659,6 +697,30 @@ document.addEventListener('alpine:init', () => {
             if (!confirm('삭제하시겠습니까?')) return;
             const res = await fetch(`/api/commit-stats/${id}`, { method: 'DELETE' });
             if (res.ok) this.commitStats = this.commitStats.filter(s => s.id !== id);
+        },
+
+        get contributorStats() {
+            // main 제외한 모든 브랜치의 커밋을 작성자별로 그룹핑
+            const authorMap = {};
+            for (const branch of this.branches) {
+                if (branch.name === this.branchesDefault) continue;
+                for (const c of branch.commits) {
+                    if (!authorMap[c.author]) {
+                        authorMap[c.author] = { author: c.author, avatar: c.author_avatar, count: 0, lastMessage: '', lastDate: '', branch: branch.name };
+                    }
+                    authorMap[c.author].count++;
+                    if (!authorMap[c.author].lastDate || c.date > authorMap[c.author].lastDate) {
+                        authorMap[c.author].lastDate = c.date;
+                        authorMap[c.author].lastMessage = c.message;
+                    }
+                }
+            }
+            const contributors = Object.values(authorMap).sort((a, b) => b.count - a.count);
+            const totalCommits = contributors.reduce((s, c) => s + c.count, 0);
+            for (const c of contributors) {
+                c.pct = totalCommits > 0 ? Math.round(c.count / totalCommits * 100) : 0;
+            }
+            return { contributors, totalCommits };
         },
 
         async loadBranches(force) {
