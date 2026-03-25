@@ -24,13 +24,13 @@
         <div class="flex items-center gap-3">
             <!-- Tab toggle -->
             <div class="flex bg-surface rounded-2xl border border-border p-0.5">
-                <button @click="tab = 'diary'; loadDiary()"
+                <button @click="tab = 'diary'; _stopBranchPoll(); loadDiary()"
                         :class="tab === 'diary' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
                         class="px-3 py-1 text-xs font-medium rounded-md transition-all">다이어리</button>
-                <button @click="tab = 'work'"
+                <button @click="tab = 'work'; _stopBranchPoll()"
                         :class="tab === 'work' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
                         class="px-3 py-1 text-xs font-medium rounded-md transition-all">작업</button>
-                <button @click="tab = 'commits'"
+                <button @click="tab = 'commits'; _stopBranchPoll()"
                         :class="tab === 'commits' ? 'bg-card shadow-sm text-accent-dark' : 'text-muted'"
                         class="px-3 py-1 text-xs font-medium rounded-md transition-all">커밋</button>
                 <button @click="tab = 'branches'; loadBranches()"
@@ -434,6 +434,7 @@ document.addEventListener('alpine:init', () => {
         branchesDefault: '',
         branchesLoading: false,
         branchesError: '',
+        _branchPollTimer: null,
         workForm: { id: null, log_date: '', content: '' },
         statForm: { id: null, stat_date: '', commit_count: 0, additions: 0, deletions: 0 },
 
@@ -680,6 +681,21 @@ document.addEventListener('alpine:init', () => {
                 this.branchesError = '브랜치 조회 실패: ' + e.message;
             } finally {
                 this.branchesLoading = false;
+            }
+            this._startBranchPoll();
+        },
+
+        _startBranchPoll() {
+            this._stopBranchPoll();
+            this._branchPollTimer = setInterval(() => {
+                if (this.tab === 'branches') this.loadBranches(true);
+            }, 60000);
+        },
+
+        _stopBranchPoll() {
+            if (this._branchPollTimer) {
+                clearInterval(this._branchPollTimer);
+                this._branchPollTimer = null;
             }
         },
 
