@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends
+from typing import Literal
+
+from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_db
@@ -10,6 +12,11 @@ from app.services.db_admin_service import (
     get_sql_history, get_db_roles, grant_permission,
 )
 from app.services.ssh_service import execute_ssh_command, execute_rds_sql
+from app.services.aws_service import (
+    get_ec2_instances, get_ec2_metrics, get_rds_instances,
+    get_rds_metrics, get_cloudwatch_alarms, ec2_action,
+    get_cost_summary, clear_aws_cache,
+)
 import os
 from pathlib import Path
 
@@ -142,3 +149,53 @@ async def get_diary_entry(project_name: str, date: str):
     if not file_path.exists():
         return {"date": date, "content": "", "error": "Not found"}
     return {"date": date, "content": file_path.read_text(encoding="utf-8")}
+
+
+# === AWS ===
+
+
+class Ec2ActionRequest(BaseModel):
+    action: Literal["start", "stop", "reboot"]
+    reason: str = ""
+
+
+@router.get("/aws/ec2")
+async def aws_ec2_list():
+    return await get_ec2_instances()
+
+
+@router.get("/aws/ec2/{instance_id}/metrics")
+async def aws_ec2_metrics(instance_id: str):
+    return await get_ec2_metrics(instance_id)
+
+
+@router.post("/aws/ec2/{instance_id}/action")
+async def aws_ec2_action(instance_id: str, req: Ec2ActionRequest, request: Request):
+    actor = getattr(getattr(request.state, "user", None), "username", "unknown")
+    return await ec2_action(instance_id, req.action, req.reason, actor)
+
+
+@router.get("/aws/rds")
+async def aws_rds_list():
+    return await get_rds_instances()
+
+
+@router.get("/aws/rds/{db_instance_id}/metrics")
+async def aws_rds_metrics(db_instance_id: str):
+    return await get_rds_metrics(db_instance_id)
+
+
+@router.get("/aws/alarms")
+async def aws_alarms():
+    return await get_cloudwatch_alarms()
+
+
+@router.get("/aws/costs")
+async def aws_costs():
+    return await get_cost_summary()
+
+
+@router.post("/aws/refresh")
+async def aws_refresh():
+    clear_aws_cache()
+    return {"success": True, "message": "AWS 캐시 초기화 완료"}

@@ -23,6 +23,7 @@
         <button onclick="switchInfraTab('db')" id="itab-db" class="px-4 py-2 text-sm tab-active">DB 관리</button>
         <button onclick="switchInfraTab('rds')" id="itab-rds" class="px-4 py-2 text-sm tab-inactive">RDS 모니터링</button>
         <button onclick="switchInfraTab('ssh')" id="itab-ssh" class="px-4 py-2 text-sm tab-inactive">SSH</button>
+        <button onclick="switchInfraTab('aws')" id="itab-aws" class="px-4 py-2 text-sm tab-inactive">AWS</button>
     </div>
 
     <!-- DB 관리 탭 -->
@@ -173,18 +174,101 @@
 
         </div>
     </div>
+
+    <!-- AWS 탭 -->
+    <div id="panel-aws" class="hidden">
+        <!-- 로딩 표시 -->
+        <div id="aws-loading" class="text-center py-8 text-sm text-muted">AWS 데이터 로딩 중...</div>
+
+        <!-- 데이터 로드 후 표시 -->
+        <div id="aws-content" class="hidden">
+
+            <!-- 요약 카드 4개 -->
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                <div class="bg-card border border-border rounded-2xl p-4">
+                    <p class="text-xs text-muted mb-1">EC2 인스턴스</p>
+                    <p class="text-2xl font-semibold" id="aws-ec2-count">-</p>
+                </div>
+                <div class="bg-card border border-border rounded-2xl p-4">
+                    <p class="text-xs text-muted mb-1">RDS 인스턴스</p>
+                    <p class="text-2xl font-semibold" id="aws-rds-count">-</p>
+                </div>
+                <div class="bg-card border border-border rounded-2xl p-4">
+                    <p class="text-xs text-muted mb-1">이번 달 비용</p>
+                    <p class="text-2xl font-semibold" id="aws-cost-mtd">-</p>
+                </div>
+                <div class="bg-card border border-border rounded-2xl p-4">
+                    <p class="text-xs text-muted mb-1">알람</p>
+                    <div class="flex items-center gap-2">
+                        <p class="text-2xl font-semibold" id="aws-alarm-count">-</p>
+                        <span id="aws-alarm-badge" class="hidden px-2 py-0.5 text-[10px] font-medium rounded-full bg-danger-light text-danger"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 새로고침 버튼 -->
+            <div class="flex justify-end mb-4">
+                <button onclick="refreshAws()" class="px-3 py-1.5 text-xs border border-border rounded-2xl hover:bg-surface">
+                    새로고침
+                </button>
+            </div>
+
+            <!-- EC2 섹션 -->
+            <div class="mb-6">
+                <p class="text-sm font-medium mb-3">EC2 인스턴스</p>
+                <div id="aws-ec2-list" class="space-y-3"></div>
+            </div>
+
+            <!-- RDS 섹션 -->
+            <div class="mb-6">
+                <p class="text-sm font-medium mb-3">RDS 인스턴스</p>
+                <div id="aws-rds-list" class="space-y-3"></div>
+            </div>
+
+            <!-- CloudWatch 알람 -->
+            <div class="mb-6">
+                <p class="text-sm font-medium mb-3">CloudWatch 알람</p>
+                <div id="aws-alarms-list" class="space-y-2"></div>
+            </div>
+
+            <!-- 비용 요약 -->
+            <div class="mb-6">
+                <p class="text-sm font-medium mb-3">이번 달 서비스별 비용</p>
+                <div id="aws-cost-list" class="bg-card border border-border rounded-2xl overflow-hidden">
+                    <div class="result-table" id="aws-cost-table"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- EC2 확인 모달 -->
+        <div id="ec2-confirm-modal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+            <div class="bg-white rounded-2xl p-6 max-w-sm w-full mx-4 shadow-xl border border-border">
+                <p class="text-sm font-medium mb-2" id="ec2-modal-title">확인</p>
+                <p class="text-xs text-muted mb-3" id="ec2-modal-desc"></p>
+                <div class="mb-3">
+                    <label class="text-[10px] text-muted">사유 (선택)</label>
+                    <input type="text" id="ec2-modal-reason" class="w-full mt-1 px-3 py-1.5 text-sm border border-border rounded-xl bg-surface focus:outline-none focus:ring-2 focus:ring-accent/20" placeholder="예: 유지보수">
+                </div>
+                <div class="flex gap-2 justify-end">
+                    <button onclick="closeEc2Modal()" class="px-4 py-1.5 text-xs border border-border rounded-xl hover:bg-surface">취소</button>
+                    <button onclick="confirmEc2Action()" id="ec2-modal-btn" class="px-4 py-1.5 text-xs text-white rounded-xl"></button>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-const infraTabs = ['db', 'rds', 'ssh'];
+const infraTabs = ['db', 'rds', 'ssh', 'aws'];
 function switchInfraTab(tab) {
     infraTabs.forEach(t => {
         document.getElementById(`panel-${t}`).classList.toggle('hidden', t !== tab);
         const btn = document.getElementById(`itab-${t}`);
         btn.className = `px-4 py-2 text-sm ${t === tab ? 'tab-active' : 'tab-inactive'}`;
     });
+    if (tab === 'aws') loadAwsData();
 }
 
 async function loadDatabases() {
@@ -352,6 +436,238 @@ function rdsQuick(sql) {
 
 function escHtml(s) {
     return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// === AWS ===
+let _awsLoaded = false;
+let _ec2ModalData = {};
+
+async function loadAwsData() {
+    if (_awsLoaded) return;
+    document.getElementById('aws-loading').classList.remove('hidden');
+    document.getElementById('aws-content').classList.add('hidden');
+
+    try {
+        const [ec2Res, rdsRes, alarmsRes, costsRes] = await Promise.all([
+            fetch('/api/infra/aws/ec2').then(r => r.json()),
+            fetch('/api/infra/aws/rds').then(r => r.json()),
+            fetch('/api/infra/aws/alarms').then(r => r.json()),
+            fetch('/api/infra/aws/costs').then(r => r.json()),
+        ]);
+
+        renderAwsSummary(ec2Res, rdsRes, alarmsRes, costsRes);
+        renderEc2List(ec2Res);
+        renderRdsList(rdsRes);
+        renderAlarmsList(alarmsRes);
+        renderCostTable(costsRes);
+
+        _awsLoaded = true;
+    } catch (e) {
+        document.getElementById('aws-loading').innerHTML = `<p class="text-xs text-danger">AWS 데이터 로딩 실패: ${e.message}</p>`;
+        return;
+    }
+
+    document.getElementById('aws-loading').classList.add('hidden');
+    document.getElementById('aws-content').classList.remove('hidden');
+}
+
+function renderAwsSummary(ec2, rds, alarms, costs) {
+    document.getElementById('aws-ec2-count').textContent = ec2.available ? ec2.instances.length : '-';
+    document.getElementById('aws-rds-count').textContent = rds.available ? rds.instances.length : '-';
+    document.getElementById('aws-cost-mtd').textContent = costs.available ? `$${costs.mtd_total}` : '-';
+
+    if (alarms.available) {
+        const total = alarms.alarms.length;
+        const alarmCount = alarms.summary.alarm || 0;
+        document.getElementById('aws-alarm-count').textContent = total;
+        if (alarmCount > 0) {
+            const badge = document.getElementById('aws-alarm-badge');
+            badge.textContent = `${alarmCount} ALARM`;
+            badge.classList.remove('hidden');
+        }
+    }
+}
+
+function renderEc2List(data) {
+    const el = document.getElementById('aws-ec2-list');
+    if (!data.available) { el.innerHTML = `<p class="text-xs text-muted">${data.reason}</p>`; return; }
+    if (data.instances.length === 0) { el.innerHTML = '<p class="text-xs text-muted">EC2 인스턴스가 없습니다</p>'; return; }
+
+    el.innerHTML = data.instances.map(inst => {
+        const stateColor = inst.state === 'running' ? 'bg-success' : inst.state === 'stopped' ? 'bg-danger' : 'bg-warning';
+        const stateText = inst.state === 'running' ? 'text-success' : inst.state === 'stopped' ? 'text-danger' : 'text-warning';
+        return `
+        <div class="bg-card border border-border rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full ${stateColor}"></span>
+                    <span class="text-sm font-medium">${inst.name || inst.instance_id}</span>
+                    <span class="text-[10px] ${stateText} font-medium uppercase">${inst.state}</span>
+                </div>
+                <div class="flex gap-1">
+                    ${inst.state === 'stopped' ? `<button onclick="openEc2Modal('${inst.instance_id}','${inst.name || inst.instance_id}','start')" class="px-2 py-1 text-[10px] text-success border border-success/30 rounded hover:bg-success/10">시작</button>` : ''}
+                    ${inst.state === 'running' ? `<button onclick="openEc2Modal('${inst.instance_id}','${inst.name || inst.instance_id}','stop')" class="px-2 py-1 text-[10px] text-danger border border-danger/30 rounded hover:bg-danger/10">중지</button>` : ''}
+                    ${inst.state === 'running' ? `<button onclick="openEc2Modal('${inst.instance_id}','${inst.name || inst.instance_id}','reboot')" class="px-2 py-1 text-[10px] text-warning border border-warning/30 rounded hover:bg-warning/10">재부팅</button>` : ''}
+                    ${inst.state === 'running' ? `<button onclick="loadEc2Metrics('${inst.instance_id}')" class="px-2 py-1 text-[10px] text-accent border border-accent/30 rounded hover:bg-accent/10">메트릭</button>` : ''}
+                </div>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-muted">
+                <span>타입: ${inst.instance_type}</span>
+                <span>AZ: ${inst.az}</span>
+                <span>Public: ${inst.public_ip || '-'}</span>
+                <span>Private: ${inst.private_ip || '-'}</span>
+            </div>
+            <div id="ec2-metrics-${inst.instance_id}" class="hidden mt-3 pt-3 border-t border-border"></div>
+        </div>`;
+    }).join('');
+}
+
+async function loadEc2Metrics(instanceId) {
+    const el = document.getElementById(`ec2-metrics-${instanceId}`);
+    el.classList.remove('hidden');
+    el.innerHTML = '<p class="text-[10px] text-muted">메트릭 로딩...</p>';
+
+    const res = await fetch(`/api/infra/aws/ec2/${instanceId}/metrics`);
+    const data = await res.json();
+
+    if (!data.available) { el.innerHTML = `<p class="text-[10px] text-danger">${data.reason}</p>`; return; }
+
+    const netIn = data.network_in_bytes > 1048576 ? `${(data.network_in_bytes / 1048576).toFixed(1)} MB` : `${(data.network_in_bytes / 1024).toFixed(1)} KB`;
+    const netOut = data.network_out_bytes > 1048576 ? `${(data.network_out_bytes / 1048576).toFixed(1)} MB` : `${(data.network_out_bytes / 1024).toFixed(1)} KB`;
+
+    el.innerHTML = `
+        <div class="grid grid-cols-4 gap-3 text-[11px]">
+            <div><span class="text-muted">CPU 평균</span><p class="font-medium">${data.cpu_avg}%</p></div>
+            <div><span class="text-muted">CPU 최대</span><p class="font-medium">${data.cpu_max}%</p></div>
+            <div><span class="text-muted">Net In (1h)</span><p class="font-medium">${netIn}</p></div>
+            <div><span class="text-muted">Net Out (1h)</span><p class="font-medium">${netOut}</p></div>
+        </div>
+    `;
+}
+
+function renderRdsList(data) {
+    const el = document.getElementById('aws-rds-list');
+    if (!data.available) { el.innerHTML = `<p class="text-xs text-muted">${data.reason}</p>`; return; }
+    if (data.instances.length === 0) { el.innerHTML = '<p class="text-xs text-muted">RDS 인스턴스가 없습니다</p>'; return; }
+
+    el.innerHTML = data.instances.map(db => {
+        const stateColor = db.status === 'available' ? 'bg-success' : 'bg-warning';
+        return `
+        <div class="bg-card border border-border rounded-2xl p-4">
+            <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full ${stateColor}"></span>
+                    <span class="text-sm font-medium">${db.db_instance_id}</span>
+                    <span class="text-[10px] text-success font-medium uppercase">${db.status}</span>
+                </div>
+                <button onclick="loadRdsAwsMetrics('${db.db_instance_id}')" class="px-2 py-1 text-[10px] text-accent border border-accent/30 rounded hover:bg-accent/10">메트릭</button>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 text-[11px] text-muted">
+                <span>엔진: ${db.engine} ${db.engine_version}</span>
+                <span>타입: ${db.instance_class}</span>
+                <span>스토리지: ${db.storage_gb} GB</span>
+                <span>AZ: ${db.az}${db.multi_az ? ' (Multi-AZ)' : ''}</span>
+            </div>
+            <div id="rds-aws-metrics-${db.db_instance_id}" class="hidden mt-3 pt-3 border-t border-border"></div>
+        </div>`;
+    }).join('');
+}
+
+async function loadRdsAwsMetrics(dbId) {
+    const el = document.getElementById(`rds-aws-metrics-${dbId}`);
+    el.classList.remove('hidden');
+    el.innerHTML = '<p class="text-[10px] text-muted">메트릭 로딩...</p>';
+
+    const res = await fetch(`/api/infra/aws/rds/${dbId}/metrics`);
+    const data = await res.json();
+
+    if (!data.available) { el.innerHTML = `<p class="text-[10px] text-danger">${data.reason}</p>`; return; }
+
+    el.innerHTML = `
+        <div class="grid grid-cols-3 gap-3 text-[11px]">
+            <div><span class="text-muted">CPU 평균</span><p class="font-medium">${data.cpu_avg}%</p></div>
+            <div><span class="text-muted">여유 메모리</span><p class="font-medium">${data.freeable_memory_mb} MB</p></div>
+            <div><span class="text-muted">커넥션</span><p class="font-medium">${data.connections}</p></div>
+        </div>
+    `;
+}
+
+function renderAlarmsList(data) {
+    const el = document.getElementById('aws-alarms-list');
+    if (!data.available) { el.innerHTML = `<p class="text-xs text-muted">${data.reason}</p>`; return; }
+    if (data.alarms.length === 0) { el.innerHTML = '<p class="text-xs text-success">설정된 알람이 없습니다</p>'; return; }
+
+    el.innerHTML = data.alarms.map(a => {
+        const color = a.state === 'OK' ? 'bg-success' : a.state === 'ALARM' ? 'bg-danger' : 'bg-gray-400';
+        const textColor = a.state === 'OK' ? 'text-success' : a.state === 'ALARM' ? 'text-danger' : 'text-muted';
+        return `
+        <div class="flex items-center gap-3 bg-card border border-border rounded-2xl px-4 py-2.5">
+            <span class="w-2 h-2 rounded-full ${color}"></span>
+            <span class="text-xs font-medium flex-1">${a.name}</span>
+            <span class="text-[10px] ${textColor} font-medium">${a.state}</span>
+            <span class="text-[10px] text-muted">${a.namespace} / ${a.metric_name}</span>
+        </div>`;
+    }).join('');
+}
+
+function renderCostTable(data) {
+    const el = document.getElementById('aws-cost-table');
+    if (!data.available) { el.innerHTML = `<p class="p-3 text-xs text-muted">${data.reason}</p>`; return; }
+    const services = data.services || [];
+    if (services.length === 0) { el.innerHTML = '<p class="p-3 text-xs text-muted">비용 데이터 없음</p>'; return; }
+
+    let html = '<table><tr><th>서비스</th><th>비용 (USD)</th></tr>';
+    services.forEach(s => {
+        html += `<tr><td>${s.service_name}</td><td class="text-right">$${s.cost_usd.toFixed(2)}</td></tr>`;
+    });
+    html += `<tr class="font-medium"><td>합계</td><td class="text-right">$${data.mtd_total.toFixed(2)}</td></tr></table>`;
+    el.innerHTML = html;
+}
+
+// EC2 확인 모달
+function openEc2Modal(instanceId, name, action) {
+    const actionLabel = {start: '시작', stop: '중지', reboot: '재부팅'}[action];
+    const btnColor = action === 'start' ? 'bg-success' : action === 'stop' ? 'bg-danger' : 'bg-warning';
+
+    _ec2ModalData = { instanceId, action };
+    document.getElementById('ec2-modal-title').textContent = `EC2 ${actionLabel}`;
+    document.getElementById('ec2-modal-desc').textContent = `${name} (${instanceId})을(를) ${actionLabel}하시겠습니까?`;
+    document.getElementById('ec2-modal-reason').value = '';
+    const btn = document.getElementById('ec2-modal-btn');
+    btn.textContent = actionLabel;
+    btn.className = `px-4 py-1.5 text-xs text-white rounded-xl ${btnColor}`;
+    document.getElementById('ec2-confirm-modal').classList.remove('hidden');
+}
+
+function closeEc2Modal() {
+    document.getElementById('ec2-confirm-modal').classList.add('hidden');
+}
+
+async function confirmEc2Action() {
+    const { instanceId, action } = _ec2ModalData;
+    const reason = document.getElementById('ec2-modal-reason').value.trim();
+    closeEc2Modal();
+
+    const res = await fetch(`/api/infra/aws/ec2/${instanceId}/action`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, reason }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+        alert(data.message);
+        _awsLoaded = false;
+        loadAwsData();
+    } else {
+        alert('실패: ' + data.message);
+    }
+}
+
+async function refreshAws() {
+    await fetch('/api/infra/aws/refresh', { method: 'POST' });
+    _awsLoaded = false;
+    loadAwsData();
 }
 
 loadDatabases();
