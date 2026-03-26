@@ -6,25 +6,29 @@ from app.models import Project, Agent, Milestone
 from sqlalchemy import select
 
 
+ORBIT_PROJECT_YAML = """\
+agents:
+  A0:
+    name: 인프라
+    mcp: [postgres]
+  A1:
+    name: 백엔드 API
+    mcp: [context7, postgres]
+  A2:
+    name: 프론트엔드 UI
+    mcp: [context7, playwright]
+  A3:
+    name: AI/연동
+    mcp: [github, context7]
+  A4:
+    name: 데이터 분석
+    mcp: [github]
+  QA:
+    name: 검증
+    mcp: [playwright, sequential-thinking]
+"""
+
 SEED_PROJECTS = [
-    {
-        "name": "Giniz",
-        "slug": "giniz",
-        "description": "부동산 중개 SaaS 플랫폼",
-        "status": "active",
-        "repo_url": "",
-        "stack": "Spring Boot + Flutter + MSSQL",
-        "color": "#185FA5",
-    },
-    {
-        "name": "DAESIN",
-        "slug": "daesin",
-        "description": "법인 부동산 CRM — 시화반월/남동 산업단지",
-        "status": "active",
-        "repo_url": "",
-        "stack": "FastAPI + Flutter + PostgreSQL + pgvector",
-        "color": "#0F6E56",
-    },
     {
         "name": "ORBIT",
         "slug": "orbit",
@@ -33,24 +37,18 @@ SEED_PROJECTS = [
         "repo_url": "",
         "stack": "FastAPI + Jinja2 + HTMX + Tailwind + PostgreSQL",
         "color": "#534AB7",
+        "project_yaml": ORBIT_PROJECT_YAML,
+        "local_path": r"C:\Users\win11\Desktop\Project\orbit",
     },
 ]
 
 SEED_AGENTS = {
-    "daesin": [
-        ("A0", "인프라", "opus"),
-        ("A1", "데이터", "opus"),
-        ("A2", "CRM", "opus"),
-        ("A3", "AI/RAG", "opus"),
-        ("A4", "비즈니스", "opus"),
-        ("QA", "검증", "opus"),
-    ],
     "orbit": [
         ("A0", "인프라", "opus"),
-        ("A1", "데이터", "opus"),
-        ("A2", "프론트엔드", "opus"),
+        ("A1", "백엔드 API", "opus"),
+        ("A2", "프론트엔드 UI", "opus"),
         ("A3", "AI/연동", "opus"),
-        ("A4", "비즈니스", "opus"),
+        ("A4", "데이터 분석", "opus"),
         ("QA", "검증", "opus"),
     ],
 }
@@ -70,11 +68,6 @@ SEED_MILESTONES = {
         ("S9 — UI 보강", "done", "2026-03-18", "2026-03-18", 9),
         ("S10 — 오케스트레이터", "done", "2026-03-18", "2026-03-18", 10),
         ("S11 — Glass 디자인", "done", "2026-03-18", "2026-03-18", 11),
-    ],
-    "daesin": [
-        ("Phase 1 — MVP 설계", "done", "2026-03-01", "2026-03-14", 0),
-        ("Phase 2 — 공공데이터 수집", "active", "2026-03-15", "2026-03-28", 1),
-        ("Phase 3 — CRM 코어", "planned", "2026-03-29", "2026-04-11", 2),
     ],
 }
 
@@ -105,7 +98,7 @@ async def seed():
                     select(Agent).where(Agent.project_id == project.id, Agent.agent_code == code)
                 )
                 if not exists.scalar_one_or_none():
-                    db.add(Agent(project_id=project.id, agent_code=code, agent_name=name, model_tier=tier))
+                    db.add(Agent(project_id=project.id, agent_code=code, agent_name=name, model_tier=tier, source="local"))
                     print(f"  + Agent: {slug}/{code} {name}")
                 else:
                     print(f"  ~ Agent: {slug}/{code} (exists)")

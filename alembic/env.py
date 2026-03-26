@@ -17,7 +17,7 @@ db_url_sync = os.environ.get(
 )
 
 from app.database import Base  # noqa: E402
-from app.models import Project, Agent, AgentRun, Milestone, Session, WorkLog, CommitStat, InfraCost, Todo, SqlHistory, User, RepoScore  # noqa: E402, F401
+from app.models import Project, Agent, AgentRun, Milestone, Session, WorkLog, CommitStat, InfraCost, SqlHistory, User, RepoScore  # noqa: E402, F401
 
 target_metadata = Base.metadata
 

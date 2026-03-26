@@ -69,13 +69,47 @@ templates.env.filters["kst"] = _to_kst
 templates.env.globals["is_admin_user"] = lambda request: getattr(getattr(request, "state", None), "user", {}).get("role") == "admin"
 templates.env.globals["current_username"] = lambda request: getattr(getattr(request, "state", None), "user", {}).get("user", "")
 
-DAESIN_AGENTS = [
-    ("A0", "Infrastructure", "opus"),
-    ("A1", "Public Data", "sonnet"),
-    ("A2", "Corporate CRM", "sonnet"),
-    ("A3", "AI-RAG", "opus"),
-    ("A4", "Properties/Transactions", "sonnet"),
+DEFAULT_AGENTS = [
+    ("A0", "인프라", "opus"),
+    ("A1", "백엔드 API", "opus"),
+    ("A2", "프론트엔드 UI", "opus"),
+    ("A3", "AI/연동", "opus"),
+    ("A4", "데이터 분석", "opus"),
+    ("QA", "검증", "opus"),
 ]
+
+
+def _parse_agents_from_yaml(project_yaml: str | None) -> list[tuple[str, str, str]]:
+    """project_yaml에서 에이전트 목록 추출. 없으면 DEFAULT_AGENTS 반환."""
+    if not project_yaml:
+        return DEFAULT_AGENTS
+    agents: list[tuple[str, str, str]] = []
+    lines = project_yaml.split("\n")
+    in_agents = False
+    current_code = None
+    current_name = None
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "agents:":
+            in_agents = True
+            continue
+        if in_agents:
+            if stripped and not stripped.startswith("#") and not line.startswith(" ") and not line.startswith("\t"):
+                break
+            code_match = re.match(r"^\s{2}(A[0-4]|QA)\s*:", line)
+            if code_match:
+                if current_code and current_name:
+                    agents.append((current_code, current_name, "opus"))
+                current_code = code_match.group(1)
+                current_name = None
+                continue
+            if current_code:
+                name_match = re.match(r"\s+name:\s*(.+)", line)
+                if name_match:
+                    current_name = name_match.group(1).strip()
+    if current_code and current_name:
+        agents.append((current_code, current_name, "opus"))
+    return agents if agents else DEFAULT_AGENTS
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -558,19 +592,26 @@ async def agents_partial(request: Request, slug: str, db: AsyncSession = Depends
 @router.post("/projects/{slug}/agents/seed")
 async def seed_agents(slug: str, db: AsyncSession = Depends(get_db)):
     from app.services import get_project_by_slug
+    from app.services.local_sync_service import sync_from_local
     project = await get_project_by_slug(db, slug)
     if not project:
         from fastapi.exceptions import HTTPException
         raise HTTPException(status_code=404)
-    existing = await get_agents_by_project(db, project.id)
-    if not existing:
-        for code, name, tier in DAESIN_AGENTS:
-            await create_agent(db, AgentCreate(
-                project_id=project.id,
-                agent_code=code,
-                agent_name=name,
-                model_tier=tier,
-            ))
+    # local_path가 있으면 로컬 파일에서 자동 동기화
+    if project.local_path:
+        await sync_from_local(db, project)
+    else:
+        # fallback: project_yaml 또는 기본 에이전트
+        existing = await get_agents_by_project(db, project.id)
+        if not existing:
+            agent_list = _parse_agents_from_yaml(project.project_yaml)
+            for code, name, tier in agent_list:
+                await create_agent(db, AgentCreate(
+                    project_id=project.id,
+                    agent_code=code,
+                    agent_name=name,
+                    model_tier=tier,
+                ))
     return RedirectResponse(url=f"/projects/{slug}/agents", status_code=303)
 
 

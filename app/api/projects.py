@@ -4,11 +4,13 @@ from app.database import get_db
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
 from app.services import (
     get_projects,
+    get_project_by_id,
     get_project_by_slug,
     create_project,
     update_project,
     delete_project,
 )
+from app.services.local_sync_service import sync_from_local
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
 
@@ -47,3 +49,16 @@ async def remove_project(project_id: int, db: AsyncSession = Depends(get_db)):
     deleted = await delete_project(db, project_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Project not found")
+
+
+@router.post("/{project_id}/sync-local")
+async def sync_local_agents(project_id: int, db: AsyncSession = Depends(get_db)):
+    project = await get_project_by_id(db, project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+    if not project.local_path:
+        raise HTTPException(status_code=400, detail="local_path가 설정되지 않았습니다.")
+    result = await sync_from_local(db, project)
+    if "error" in result:
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result

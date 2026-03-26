@@ -16,6 +16,7 @@ class Project(Base):
     color = Column(String(7), default="#534AB7")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     project_yaml = Column(Text, nullable=True)
+    local_path = Column(String(500), nullable=True)
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 
@@ -40,6 +41,7 @@ class Agent(Base):
     status = Column(String(20), default="idle")
     current_task = Column(String(200), default="")
     last_heartbeat = Column(DateTime(timezone=True), nullable=True)
+    source = Column(String(20), default="manual", server_default="manual")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     deleted_at = Column(DateTime(timezone=True), nullable=True)
 

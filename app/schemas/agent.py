@@ -66,6 +66,7 @@ class AgentResponse(BaseModel):
     model_tier: str
     status: str
     current_task: str
+    source: str = "manual"
     last_heartbeat: Optional[datetime]
     created_at: datetime
     recent_runs: list[AgentRunResponse] = []

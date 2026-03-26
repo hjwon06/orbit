@@ -10,6 +10,7 @@ class ProjectCreate(BaseModel):
     repo_url: str = ""
     stack: str = ""
     color: str = "#534AB7"
+    local_path: Optional[str] = None
 
 
 class ProjectUpdate(BaseModel):
@@ -20,6 +21,7 @@ class ProjectUpdate(BaseModel):
     stack: Optional[str] = None
     color: Optional[str] = None
     project_yaml: Optional[str] = None
+    local_path: Optional[str] = None
 
 
 class ProjectResponse(BaseModel):
@@ -32,6 +34,7 @@ class ProjectResponse(BaseModel):
     stack: str
     color: str
     project_yaml: Optional[str] = None
+    local_path: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

@@ -12,6 +12,14 @@
         <div class="flex items-center gap-3">
             <span class="text-[11px] text-muted">3초마다 자동 갱신</span>
             <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            {% if project.local_path %}
+            <button @click="syncLocal()"
+                    class="border border-violet-300 text-violet-600 text-xs px-3 py-1.5 rounded-2xl hover:bg-violet-50 transition-colors flex items-center gap-1"
+                    :disabled="syncing">
+                <svg class="w-3.5 h-3.5" :class="syncing && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                <span x-text="syncing ? '동기화 중...' : '로컬 동기화'"></span>
+            </button>
+            {% endif %}
             <button @click="openReset()"
                     class="border border-border text-muted text-xs px-3 py-1.5 rounded-2xl hover:bg-surface transition-colors">
                 재설정
@@ -245,6 +253,7 @@ document.addEventListener('alpine:init', () => {
         resetText: '',
         resetError: '',
         resetResult: '',
+        syncing: false,
         _timer: null,
 
         init() {
@@ -269,6 +278,48 @@ document.addEventListener('alpine:init', () => {
             } catch (e) {
                 // 네트워크 오류 시 무시 — 다음 폴링에서 재시도
             }
+        },
+
+        async syncLocal() {
+            this.syncing = true;
+            try {
+                const res = await fetch(`/api/projects/${window.__projectId}/sync-local`, { method: 'POST' });
+                if (res.ok) {
+                    await this.fetchAgents();
+                    // MCP맵도 새로고침
+                    const projRes = await fetch(`/api/projects/${window.__projectSlug}`);
+                    if (projRes.ok) {
+                        const proj = await projRes.json();
+                        if (proj.project_yaml) {
+                            this.mcpMap = this.parseMcpFromYaml(proj.project_yaml);
+                        }
+                    }
+                }
+            } catch (e) {}
+            this.syncing = false;
+        },
+
+        parseMcpFromYaml(yaml) {
+            const map = {};
+            const lines = yaml.split('\n');
+            let inAgents = false;
+            let currentCode = null;
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (trimmed === 'agents:') { inAgents = true; continue; }
+                if (inAgents) {
+                    if (trimmed && !trimmed.startsWith('#') && !line.startsWith(' ') && !line.startsWith('\t')) break;
+                    const codeMatch = trimmed.match(/^(A[0-4]|QA)\s*:/);
+                    if (codeMatch) { currentCode = codeMatch[1]; continue; }
+                    if (currentCode) {
+                        const mcpMatch = trimmed.match(/^mcp:\s*\[(.+)]/);
+                        if (mcpMatch) {
+                            map[currentCode] = mcpMatch[1].split(',').map(s => s.trim());
+                        }
+                    }
+                }
+            }
+            return map;
         },
 
         get runningCount() {
