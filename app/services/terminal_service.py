@@ -57,6 +57,25 @@ class TerminalSession:
 
     def _start_reader_thread(self) -> None:
         """별도 스레드에서 PTY/PIPE 출력을 읽어서 큐에 넣기."""
+        if self._winpty is not None:
+            def _winpty_read_loop() -> None:
+                while not self._stop_event.is_set():
+                    try:
+                        data = self._winpty.read(4096)  # type: ignore[union-attr]
+                        if data:
+                            self._output_queue.put_nowait(data.encode("utf-8"))
+                        else:
+                            break
+                    except EOFError:
+                        break
+                    except Exception:
+                        break
+                self._output_queue.put_nowait(b"")
+
+            self._reader_thread = threading.Thread(target=_winpty_read_loop, daemon=True)
+            self._reader_thread.start()
+            return
+
         if self._process and self._process.stdout:
             # subprocess PIPE — asyncio 기반 reader를 별도 task로
             asyncio.get_event_loop().create_task(self._async_pipe_reader())
@@ -97,7 +116,9 @@ class TerminalSession:
 
     async def write(self, data: bytes) -> None:
         self.touch()
-        if self._master_fd is not None:
+        if self._winpty is not None:
+            self._winpty.write(data.decode("utf-8", errors="replace"))  # type: ignore[union-attr]
+        elif self._master_fd is not None:
             os.write(self._master_fd, data)
         elif self._process and self._process.stdin:
             self._process.stdin.write(data)
@@ -282,13 +303,23 @@ class TerminalSessionManager:
             "bash": ["bash.exe", "--login"],
         }
         cmd = cmd_map.get(session.shell, ["powershell.exe", "-NoLogo", "-NoExit"])
-        process = await asyncio.create_subprocess_exec(
-            *cmd, cwd=session.cwd,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        session._process = process
+
+        if HAS_WINPTY:
+            pty_proc = WinPtyProcess.spawn(
+                cmd,
+                cwd=session.cwd,
+                dimensions=(session.rows, session.cols),
+            )
+            session._winpty = pty_proc
+            session._process = None
+        else:
+            process = await asyncio.create_subprocess_exec(
+                *cmd, cwd=session.cwd,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.STDOUT,
+            )
+            session._process = process
 
 
 # 글로벌 싱글톤
