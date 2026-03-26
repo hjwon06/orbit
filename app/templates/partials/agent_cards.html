@@ -40,6 +40,18 @@
         </span>
     </div>
 
+    <!-- MCP Tools -->
+    {% if mcp_map.get(agent.agent_code) %}
+    <div class="mt-2 flex flex-wrap gap-1">
+        {% for mcp in mcp_map[agent.agent_code] %}
+        <span class="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-violet-50 text-violet-600 border border-violet-200">
+            <svg class="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            {{ mcp }}
+        </span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
     <!-- Current task -->
     {% if agent.current_task %}
     <div class="mt-3 px-2.5 py-1.5 bg-surface rounded text-xs text-gray-600 truncate">

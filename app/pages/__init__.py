@@ -1,4 +1,5 @@
 import json
+import re
 from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone as tz
 
@@ -16,6 +17,33 @@ from app.services.commit_stat_service import get_commit_stats_by_project
 from app.services.infra_cost_service import get_costs_by_project
 # todo_service import 제거 (AI 할일 기능 삭제)
 from app.schemas.agent import AgentCreate
+
+
+def _parse_mcp_map(project_yaml: str | None) -> dict[str, list[str]]:
+    """project.yaml에서 에이전트별 MCP 매핑 추출."""
+    if not project_yaml:
+        return {}
+    mcp_map: dict[str, list[str]] = {}
+    lines = project_yaml.split("\n")
+    in_agents = False
+    current_code = None
+    for line in lines:
+        stripped = line.strip()
+        if stripped == "agents:":
+            in_agents = True
+            continue
+        if in_agents:
+            if stripped and not stripped.startswith("#") and not line.startswith(" ") and not line.startswith("\t"):
+                break
+            code_match = re.match(r"^\s{2}(A[0-4]|QA)\s*:", line)
+            if code_match:
+                current_code = code_match.group(1)
+                continue
+            if current_code:
+                mcp_match = re.match(r"\s+mcp:\s*\[(.+)\]", line)
+                if mcp_match:
+                    mcp_map[current_code] = [m.strip() for m in mcp_match.group(1).split(",")]
+    return mcp_map
 
 
 def _json_serial(obj):
@@ -497,11 +525,15 @@ async def agents_page(request: Request, slug: str, db: AsyncSession = Depends(ge
         }
         for a in agents
     ], default=_json_serial)
+    mcp_map = _parse_mcp_map(project.project_yaml)
+    mcp_map_json = json.dumps(mcp_map)
     return templates.TemplateResponse("agents.html", {
         "request": request,
         "project": project,
         "agents": agents,
         "agents_json": agents_json,
+        "mcp_map": mcp_map,
+        "mcp_map_json": mcp_map_json,
         "project_id": project.id,
         "page_title": f"{project.name} — 에이전트",
     })
@@ -515,9 +547,11 @@ async def agents_partial(request: Request, slug: str, db: AsyncSession = Depends
         from fastapi.exceptions import HTTPException
         raise HTTPException(status_code=404)
     agents = await get_agents_by_project(db, project.id)
+    mcp_map = _parse_mcp_map(project.project_yaml)
     return templates.TemplateResponse("partials/agent_cards.html", {
         "request": request,
         "agents": agents,
+        "mcp_map": mcp_map,
     })
 
 
