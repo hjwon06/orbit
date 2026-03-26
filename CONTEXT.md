@@ -105,6 +105,22 @@ ob_users        ← RBAC (username unique, password_hash bcrypt, role admin/memb
 **해결**: `agent_code` 필드를 body에서 아예 제거 (Optional이므로 서버에서 기본값 적용).
 **교훈**: Hook에서 ORBIT API 호출 시 None/null 필드는 body에서 생략하는 것이 안전.
 
+### 12. RDS 전환 후 seed 미실행 → 빈 DB
+**증상**: jay 계정 로그인은 되지만 프로젝트/에이전트가 하나도 안 보임.
+**원인**: RDS로 전환 후 `python seed.py`를 실행하지 않아 ob_projects, ob_agents, ob_milestones 테이블이 비어있었음.
+**교훈**: DB 전환/마이그레이션 후 seed 실행 체크리스트 필수. project_yaml도 seed에 포함해야 MCP 배지 표시됨.
+
+### 13. rate limit 로컬 IP 미면제 → 로그인 잠김
+**증상**: 비밀번호 리셋 후에도 브라우저에서 "아이디 또는 비밀번호가 잘못되었습니다" 반복.
+**원인**: 브라우저 IP가 172.x/192.168.x 대역이면 rate limit 면제 안 됨. 5회 실패 후 15분 잠김. 서버 메모리 기반이라 재시작해야 풀림.
+**해결**: exempt IP에 172.x, 192.168.x 추가. 디버그 로깅 추가.
+**교훈**: rate limit 면제 IP 범위를 충분히 넓게 잡을 것. 로컬 개발 환경에서 다양한 IP가 올 수 있음.
+
+### 14. DAESIN_AGENTS 하드코딩 잔재
+**증상**: 에이전트 seed 버튼 누르면 삭제된 DAESIN 프로젝트의 영문 에이전트가 생성됨.
+**원인**: `pages/__init__.py`에 `DAESIN_AGENTS` 리스트가 하드코딩되어 있었음.
+**해결**: project_yaml 기반 동적 로딩 + local_path 기반 자동 동기화로 교체.
+
 ### 8. Alpine.js + defer 로딩 순서
 **패턴**: `base.html`에서 `<script defer>` 로 Alpine.js 로드 → 템플릿의 `{% block scripts %}`에서 `alpine:init` 이벤트 리스너로 컴포넌트 등록 → 정상 동작.
 **주의**: Alpine.js보다 먼저 `x-data`에서 사용할 전역 변수(`window.__milestones` 등)를 선언해야 함.

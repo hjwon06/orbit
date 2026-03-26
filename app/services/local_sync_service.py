@@ -63,14 +63,22 @@ def parse_agent_md(file_path: Path) -> dict | None:
 
 
 def extract_agent_code(filename: str) -> str | None:
-    """파일명에서 에이전트 코드 추출. a0-xxx.md → A0, qa-xxx.md → QA."""
-    stem = Path(filename).stem  # a0-infrastructure
-    prefix = stem.split("-")[0]  # a0
-    if re.match(r"^a[0-4]$", prefix, re.IGNORECASE):
+    """파일명에서 에이전트 코드 추출.
+
+    a0-xxx.md → A0, qa-xxx.md → QA (기존 패턴)
+    code-reviewer.md → CR, db-reviewer.md → DR (자유 형식: 단어 첫글자 조합)
+    """
+    stem = Path(filename).stem
+    prefix = stem.split("-")[0]
+    # 기존 패턴: a0~a4, qa
+    if re.match(r"^a[0-9]$", prefix, re.IGNORECASE):
         return prefix.upper()
     if prefix.lower() == "qa":
         return "QA"
-    return None
+    # 자유 형식: 단어 첫글자 조합 (code-reviewer → CR)
+    parts = stem.split("-")
+    code = "".join(p[0].upper() for p in parts if p)
+    return code if code else None
 
 
 def scan_agents_dir(local_path: str) -> list[dict]:

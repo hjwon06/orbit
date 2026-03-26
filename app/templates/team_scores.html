@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="max-w-5xl" x-data="teamScores()" x-cloak>
+    <!-- Header -->
+    <div class="flex items-center justify-between mb-6">
+        <div class="flex items-center gap-3">
+            <a href="/projects/{{ project.slug }}" class="text-sm text-muted hover:text-accent transition-colors">&larr; {{ project.name }}</a>
+            <span class="text-gray-300">/</span>
+            <h2 class="text-lg font-semibold tracking-tight">팀원 채점</h2>
+        </div>
+        {% if is_admin_user(request) %}
+        <button @click="evaluate()"
+                class="bg-accent text-white text-xs px-4 py-2 rounded-2xl hover:bg-accent-dark transition-colors flex items-center gap-1.5"
+                :disabled="evaluating">
+            <svg class="w-3.5 h-3.5" :class="evaluating && 'animate-spin'" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <span x-text="evaluating ? '채점 중...' : '전체 채점 실행'"></span>
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- 팀 평균 요약 -->
+    <div class="grid grid-cols-3 gap-3 mb-6" x-show="scores.length > 0">
+        <div class="bg-card border border-border rounded-2xl p-4">
+            <p class="text-[11px] text-muted">팀 평균</p>
+            <p class="text-2xl font-bold" x-text="teamAvg + '점'"></p>
+        </div>
+        <div class="bg-card border border-border rounded-2xl p-4">
+            <p class="text-[11px] text-muted">채점 인원</p>
+            <p class="text-2xl font-bold" x-text="scores.filter(s => s.score).length + '/' + scores.length"></p>
+        </div>
+        <div class="bg-card border border-border rounded-2xl p-4">
+            <p class="text-[11px] text-muted">최저 점수</p>
+            <p class="text-2xl font-bold text-danger" x-text="minScore + '점'"></p>
+        </div>
+    </div>
+
+    <!-- 미채점 안내 -->
+    <div x-show="scores.length === 0 || scores.every(s => !s.score)"
+         class="text-center py-16 bg-card border border-dashed border-border rounded-2xl">
+        <svg class="w-12 h-12 mx-auto text-gray-300 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+        <p class="text-sm text-muted mb-3">아직 채점 결과가 없습니다</p>
+        <p class="text-xs text-gray-400">"전체 채점 실행" 버튼을 눌러 AI 검수를 시작하세요</p>
+    </div>
+
+    <!-- 팀원 카드 그리드 -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <template x-for="item in scores" :key="item.member.member_name">
+            <div class="bg-card border border-border rounded-2xl p-5 cursor-pointer hover:shadow-md transition-shadow"
+                 @click="selectMember(item)">
+                <!-- 상단: 이름 + 등급 -->
+                <div class="flex items-center justify-between mb-3">
+                    <div>
+                        <p class="font-semibold text-sm" x-text="item.member.display_name"></p>
+                        <p class="text-[11px] text-muted" x-text="item.member.module_path || item.member.branch_pattern"></p>
+                    </div>
+                    <template x-if="item.score">
+                        <span class="text-2xl font-black"
+                              :class="{
+                                  'text-accent': item.score.grade === 'S',
+                                  'text-emerald-600': item.score.grade === 'A',
+                                  'text-blue-600': item.score.grade === 'B',
+                                  'text-yellow-600': item.score.grade === 'C',
+                                  'text-orange-600': item.score.grade === 'D',
+                                  'text-danger': item.score.grade === 'F',
+                              }"
+                              x-text="item.score.grade"></span>
+                    </template>
+                    <template x-if="!item.score">
+                        <span class="text-lg text-gray-300">-</span>
+                    </template>
+                </div>
+
+                <!-- 점수 바 -->
+                <template x-if="item.score">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-xl font-bold" x-text="item.score.total_score"></span>
+                            <span class="text-[11px] text-muted">/ 100</span>
+                        </div>
+                        <div class="w-full bg-gray-100 rounded-full h-2 mb-3">
+                            <div class="h-2 rounded-full transition-all"
+                                 :class="{
+                                     'bg-accent': item.score.total_score >= 90,
+                                     'bg-emerald-500': item.score.total_score >= 70 && item.score.total_score < 90,
+                                     'bg-yellow-500': item.score.total_score >= 50 && item.score.total_score < 70,
+                                     'bg-danger': item.score.total_score < 50,
+                                 }"
+                                 :style="`width: ${item.score.total_score}%`"></div>
+                        </div>
+                        <!-- 카테고리 미니 바 -->
+                        <div class="grid grid-cols-5 gap-1 text-[9px] text-muted text-center">
+                            <div>
+                                <div class="bg-gray-100 rounded h-1 mb-0.5"><div class="bg-blue-400 rounded h-1" :style="`width: ${(item.score.completeness/35)*100}%`"></div></div>
+                                완성
+                            </div>
+                            <div>
+                                <div class="bg-gray-100 rounded h-1 mb-0.5"><div class="bg-violet-400 rounded h-1" :style="`width: ${(item.score.convention/25)*100}%`"></div></div>
+                                컨벤션
+                            </div>
+                            <div>
+                                <div class="bg-gray-100 rounded h-1 mb-0.5"><div class="bg-emerald-400 rounded h-1" :style="`width: ${(item.score.quality/20)*100}%`"></div></div>
+                                품질
+                            </div>
+                            <div>
+                                <div class="bg-gray-100 rounded h-1 mb-0.5"><div class="bg-red-400 rounded h-1" :style="`width: ${(item.score.security/10)*100}%`"></div></div>
+                                보안
+                            </div>
+                            <div>
+                                <div class="bg-gray-100 rounded h-1 mb-0.5"><div class="bg-yellow-400 rounded h-1" :style="`width: ${(item.score.testing/10)*100}%`"></div></div>
+                                테스트
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </template>
+    </div>
+
+    <!-- 상세 모달 -->
+    <div x-show="selected" x-transition class="fixed inset-0 z-50 flex items-center justify-center p-4" @keydown.escape.window="selected = null">
+        <div class="fixed inset-0 bg-black/30" @click="selected = null"></div>
+        <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6">
+            <button @click="selected = null" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+
+            <template x-if="selected && selected.score">
+                <div>
+                    <div class="flex items-center gap-3 mb-5">
+                        <span class="text-3xl font-black"
+                              :class="{
+                                  'text-accent': selected.score.grade === 'S',
+                                  'text-emerald-600': selected.score.grade === 'A',
+                                  'text-blue-600': selected.score.grade === 'B',
+                                  'text-yellow-600': selected.score.grade === 'C',
+                                  'text-danger': selected.score.grade === 'F',
+                              }"
+                              x-text="selected.score.grade"></span>
+                        <div>
+                            <p class="font-semibold" x-text="selected.member.display_name"></p>
+                            <p class="text-sm text-muted" x-text="selected.score.total_score + '점 / 100점'"></p>
+                        </div>
+                    </div>
+
+                    <!-- 카테고리별 상세 -->
+                    <div class="space-y-3 mb-5">
+                        <template x-for="cat in [
+                            {name: '기능 완성도', score: selected.score.completeness, max: 35, color: 'blue'},
+                            {name: '컨벤션 준수', score: selected.score.convention, max: 25, color: 'violet'},
+                            {name: '코드 품질', score: selected.score.quality, max: 20, color: 'emerald'},
+                            {name: '보안/안정성', score: selected.score.security, max: 10, color: 'red'},
+                            {name: '테스트', score: selected.score.testing, max: 10, color: 'yellow'},
+                        ]">
+                            <div>
+                                <div class="flex justify-between text-xs mb-1">
+                                    <span x-text="cat.name"></span>
+                                    <span class="font-mono" x-text="cat.score + '/' + cat.max"></span>
+                                </div>
+                                <div class="w-full bg-gray-100 rounded-full h-2">
+                                    <div class="h-2 rounded-full" :class="`bg-${cat.color}-400`" :style="`width: ${(cat.score/cat.max)*100}%`"></div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+
+                    <!-- 위반 목록 -->
+                    <div x-show="violations.length > 0" class="mb-5">
+                        <p class="text-xs font-semibold text-muted mb-2 uppercase tracking-wider">감점 내역</p>
+                        <div class="space-y-1.5 max-h-48 overflow-y-auto">
+                            <template x-for="v in violations">
+                                <div class="flex items-start gap-2 text-xs bg-red-50/50 rounded-lg px-3 py-2">
+                                    <span class="font-mono text-danger shrink-0" x-text="'-' + v.penalty"></span>
+                                    <div>
+                                        <span class="font-medium" x-text="v.rule + ' ' + v.name"></span>
+                                        <p class="text-gray-400 truncate" x-text="v.location"></p>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+
+                    <!-- GPT 리뷰 -->
+                    <div x-show="selected.score.gpt_review">
+                        <p class="text-xs font-semibold text-muted mb-2 uppercase tracking-wider">AI 리뷰</p>
+                        <pre class="text-xs bg-surface rounded-lg p-3 whitespace-pre-wrap max-h-48 overflow-y-auto" x-text="selected.score.gpt_review"></pre>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.__projectId = {{ project.id }};
+window.__projectSlug = "{{ project.slug }}";
+window.__scoresData = {{ scores_data | tojson }};
+
+document.addEventListener('alpine:init', () => {
+    Alpine.data('teamScores', () => ({
+        scores: window.__scoresData || [],
+        evaluating: false,
+        selected: null,
+        violations: [],
+
+        get teamAvg() {
+            const scored = this.scores.filter(s => s.score);
+            if (!scored.length) return 0;
+            return Math.round(scored.reduce((sum, s) => sum + s.score.total_score, 0) / scored.length);
+        },
+
+        get minScore() {
+            const scored = this.scores.filter(s => s.score);
+            if (!scored.length) return 0;
+            return Math.min(...scored.map(s => s.score.total_score));
+        },
+
+        selectMember(item) {
+            this.selected = item;
+            if (item.score && item.score.violations_json) {
+                try {
+                    this.violations = JSON.parse(item.score.violations_json);
+                } catch (e) {
+                    this.violations = [];
+                }
+            } else {
+                this.violations = [];
+            }
+        },
+
+        async evaluate() {
+            this.evaluating = true;
+            try {
+                const res = await fetch(`/api/team-scores/${window.__projectId}/evaluate`, { method: 'POST' });
+                if (res.ok) {
+                    // 새로고침
+                    window.location.reload();
+                }
+            } catch (e) {}
+            this.evaluating = false;
+        },
+    }));
+});
+</script>
+{% endblock %}

@@ -73,7 +73,7 @@ class AuthMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         # 로컬 API 면제 (Claude Code Hook 연동용)
-        LOCAL_API_EXEMPT = ("/api/agents", "/api/projects/", "/api/sessions", "/api/milestones")
+        LOCAL_API_EXEMPT = ("/api/agents", "/api/projects/", "/api/sessions", "/api/milestones", "/api/team-scores")
         if any(path.startswith(p) for p in LOCAL_API_EXEMPT):
             client_ip = request.client.host if request.client else ""
             if client_ip in {"127.0.0.1", "::1"} or client_ip.startswith("172."):
@@ -151,16 +151,22 @@ def _record_attempt(key: str):
 
 @app.post("/login")
 async def login_submit(request: Request, username: str = Form(...), password: str = Form(...)):
+    import logging
+    logger = logging.getLogger("orbit.auth")
     ip = request.client.host if request.client else "unknown"
-    # 로컬/컨테이너 내부 요청은 rate limit 면제 (테스트 호환)
+    logger.warning(f"[LOGIN] ip={ip} username={username}")
+    # 로컬 IP 포함 확장 (Docker, WSL 등)
     exempt_ips = {"127.0.0.1", "::1", "localhost"}
-    if ip not in exempt_ips and (_is_rate_limited(f"ip:{ip}") or _is_rate_limited(f"user:{username}")):
+    is_local = ip in exempt_ips or ip.startswith("172.") or ip.startswith("192.168.")
+    if not is_local and (_is_rate_limited(f"ip:{ip}") or _is_rate_limited(f"user:{username}")):
+        logger.warning(f"[LOGIN] RATE LIMITED ip={ip}")
         return templates.TemplateResponse("login.html", {
             "request": request,
             "error": "로그인 시도가 너무 많습니다. 15분 후 다시 시도하세요.",
         })
     async with get_async_session() as db:
         user_info = await check_credentials(username, password, db)
+    logger.warning(f"[LOGIN] result={'OK' if user_info else 'FAIL'} ip={ip}")
     if user_info:
         _login_attempts.pop(f"ip:{ip}", None)
         _login_attempts.pop(f"user:{username}", None)

@@ -202,6 +202,47 @@ class RepoScore(Base):
         return f"<RepoScore {self.project_id}:{self.grade}>"
 
 
+class TeamMember(Base):
+    __tablename__ = "ob_team_members"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
+    member_name = Column(String(50), nullable=False)
+    display_name = Column(String(100), nullable=False)
+    branch_pattern = Column(String(200), default="")
+    module_path = Column(String(500), default="")
+    is_excluded = Column(Boolean, default=False, server_default="false")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    project = relationship("Project")
+
+    def __repr__(self):
+        return f"<TeamMember {self.member_name}>"
+
+
+class TeamScore(Base):
+    __tablename__ = "ob_team_scores"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    project_id = Column(Integer, ForeignKey("ob_projects.id", ondelete="CASCADE"), nullable=False)
+    member_name = Column(String(50), nullable=False)
+    total_score = Column(Integer, default=100)
+    grade = Column(String(2), default="S")
+    completeness = Column(Integer, default=35)
+    convention = Column(Integer, default=25)
+    quality = Column(Integer, default=20)
+    security = Column(Integer, default=10)
+    testing = Column(Integer, default=10)
+    violations_json = Column(Text, default="[]")
+    gpt_review = Column(Text, nullable=True)
+    evaluated_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    project = relationship("Project")
+
+    def __repr__(self):
+        return f"<TeamScore {self.member_name}:{self.grade}>"
+
+
 class SqlHistory(Base):
     __tablename__ = "ob_sql_history"
 

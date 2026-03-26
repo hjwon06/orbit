@@ -35,7 +35,7 @@ def _parse_mcp_map(project_yaml: str | None) -> dict[str, list[str]]:
         if in_agents:
             if stripped and not stripped.startswith("#") and not line.startswith(" ") and not line.startswith("\t"):
                 break
-            code_match = re.match(r"^\s{2}(A[0-4]|QA)\s*:", line)
+            code_match = re.match(r"^\s{2}([A-Z][A-Z0-9]*)\s*:", line)
             if code_match:
                 current_code = code_match.group(1)
                 continue
@@ -96,7 +96,7 @@ def _parse_agents_from_yaml(project_yaml: str | None) -> list[tuple[str, str, st
         if in_agents:
             if stripped and not stripped.startswith("#") and not line.startswith(" ") and not line.startswith("\t"):
                 break
-            code_match = re.match(r"^\s{2}(A[0-4]|QA)\s*:", line)
+            code_match = re.match(r"^\s{2}([A-Z][A-Z0-9]*)\s*:", line)
             if code_match:
                 if current_code and current_name:
                     agents.append((current_code, current_name, "opus"))
@@ -751,6 +751,23 @@ async def repo_score_page(request: Request, slug: str, db: AsyncSession = Depend
         "project": project,
         "github_ready": "true" if github_status.get("ready") else "false",
         "page_title": f"{project.name} — 레포 품질",
+    })
+
+
+@router.get("/projects/{slug}/team-scores", response_class=HTMLResponse)
+async def team_scores_page(request: Request, slug: str, db: AsyncSession = Depends(get_db)):
+    from app.services import get_project_by_slug
+    from app.services.team_score_service import get_latest_scores
+    project = await get_project_by_slug(db, slug)
+    if not project:
+        from fastapi.exceptions import HTTPException
+        raise HTTPException(status_code=404)
+    scores_data = await get_latest_scores(db, project.id)
+    return templates.TemplateResponse("team_scores.html", {
+        "request": request,
+        "project": project,
+        "scores_data": scores_data,
+        "page_title": f"{project.name} — 팀원 채점",
     })
 
 
